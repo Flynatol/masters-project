@@ -11,7 +11,7 @@ const REPLACEMENTS: &'static [(&[u8], &[u8])] =
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:1443").await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:1444").await.unwrap();
     let mut file = File::open("test.com.pfx").unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
@@ -95,8 +95,10 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>) {
             outbuf.iter_mut().for_each(|(_, v)| v.iter_mut().for_each(|f| {f.pop_front();}));
 
             //Print all front elements with no matches
-            println!("{:?}", outbuf );
+            println!("{:?}", outbuf);
 
+            let out = outbuf.iter().take_while(|(f, s)| s.is_empty()).map(|(a, b)| a.clone());
+            //while (outbuf.front())
             server_write_tls.write_all(&testbuf).await;
         }
     });
