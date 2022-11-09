@@ -7,8 +7,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use colored::Colorize;
 
-const DOMAIN : &str = "www.google.com";
+const DOMAIN : &str = "en.wikipedia.org";
 const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[("127.0.0.1:1444".as_bytes(), DOMAIN.as_bytes()),
+                                                  (DOMAIN.as_bytes(), "127.0.0.1:1444".as_bytes()),
                                                   ("fflkskkk".as_bytes(), "W2113dsf".as_bytes())];
 
 #[tokio::main]
@@ -50,7 +51,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>) {
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect("www.google.com:443").await.unwrap();
+    let stream_out = TcpStream::connect("wikipedia.org:443").await.unwrap();
     let tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
@@ -59,12 +60,22 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>) {
     let (mut client_read_tls, mut client_write_tls) = io::split(tls_stream_client);
     let (mut server_read_tls, mut server_write_tls) = io::split(tls_stream_server);
 
+
     tokio::spawn(async move {
+        replace_bridge(client_read_tls, server_write_tls).await;
+    });
+
+    tokio::spawn(async move {
+        replace_bridge(server_read_tls, client_write_tls).await;
+    });
+}
+
+async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>, mut write_tls : tokio::io::WriteHalf<TlsStream<TcpStream>>) {
         let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
 
         loop {
-            //let mut testbuf = vec![0u8; 1];
-            let read = match client_read_tls.read_u8().await {
+    //let mut testbuf = vec![0u8; 1];
+            let read = match read_tls.read_u8().await {
                 Ok(v) => v,
                 Err(e) => {
                     println!("{}", e);
@@ -149,20 +160,6 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>) {
 
 
             out.iter().for_each(|&f| print!("{}", (f as char).to_string().green()));
-            server_write_tls.write_all(&out).await;
+            write_tls.write_all(&out).await;
         }
-    });
-
-    tokio::spawn(async move {
-        loop {
-            let mut testbuf = vec![0u8; 1];
-            if let Err(e) = server_read_tls.read_exact(&mut testbuf).await {
-                println!("{}", e);
-                println!("Outgoing thread reading failed, terminating thread.");
-                return;
-            }
-            print!("{}", (testbuf[0] as char).to_string().cyan());
-            client_write_tls.write_all(&testbuf).await;
-        }
-    });
 }
