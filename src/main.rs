@@ -7,15 +7,16 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use colored::{Colorize, Color};
 
-const DOMAIN : &str = "en.wikipedia.org";
-const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[("127.0.0.1:1444".as_bytes(), DOMAIN.as_bytes()),
-                                                  (DOMAIN.as_bytes(), "127.0.0.1:1444".as_bytes()),
-												  ("www.wikipedia.org".as_bytes(), "127.0.0.1:1444".as_bytes()), 
+const DOMAIN : &str = "192.168.121.98";
+const MY_IP : &str = "192.168.121.234";
+const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), DOMAIN.as_bytes()),
+                                                  (DOMAIN.as_bytes(), MY_IP.as_bytes()),
+												  ("www.wikipedia.org".as_bytes(), MY_IP.as_bytes()),
                                                   ("fflkskkk".as_bytes(), "W2113dsf".as_bytes())];
 
 #[tokio::main]
 async fn main() {
-    let listener = TcpListener::bind("127.0.0.1:1444").await.unwrap();
+    let listener = TcpListener::bind("192.168.121.234:443").await.unwrap();
     let mut file = File::open("test.com.pfx").unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
@@ -58,7 +59,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num : usize) {
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect("wikipedia.org:443").await.unwrap();
+    let stream_out = TcpStream::connect("192.168.121.98:443").await.unwrap();
     let tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
@@ -156,17 +157,28 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
                     .map(|(a, b)| (a.to_vec(), b.to_vec()))
                     .collect::<Vec<_>>();
 
+                println!("Candidates: {:?}", candidates);
+
                 for (c, _) in &outbuf {
                     candidates = candidates
                         .into_iter()
                         .filter(|(a, _)| a.first() == Some(c))
+                        .map(|(a, b)| (Vec::from(&a[1..]), b))
                         .collect::<Vec<_>>();
+
+
+
                     if candidates.len() == 1 {
+                        println!("Found");
                         break;
                     }
                 }
 
-                let candidate = candidates.first().unwrap();
+                let candidate = match candidates.first() {
+                    Some(x) => x,
+                    None => {println!("Caught failed match on {:?}", outbuf);
+                             break},
+                };
 
                 //Replace byte stream
                 outbuf.drain(0..candidate.0.len().clone());
