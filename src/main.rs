@@ -16,7 +16,7 @@ const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), DOMAIN.as_b
 
 #[tokio::main]
 async fn main() {
-    let listener = TcpListener::bind("192.168.121.234:443").await.unwrap();
+    let listener = TcpListener::bind("192.168.121.234:41100").await.unwrap();
     let mut file = File::open("test.com.pfx").unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
@@ -59,7 +59,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num : usize) {
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect("192.168.121.98:443").await.unwrap();
+    let stream_out = TcpStream::connect("192.168.121.98:41100").await.unwrap();
     let tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
