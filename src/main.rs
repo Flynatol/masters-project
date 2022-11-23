@@ -8,7 +8,9 @@ use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use colored::{Colorize, Color};
 
 const DOMAIN : &str = "192.168.121.98";
-const MY_IP : &str = "192.168.121.234";
+const PORT : &str = ":411000";
+const MY_PORT: &str = ":411000";
+const MY_IP : &str = "192.168.121.234"; //TODO grab this automatically
 const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), DOMAIN.as_bytes()),
                                                   (DOMAIN.as_bytes(), MY_IP.as_bytes()),
 												  ("www.wikipedia.org".as_bytes(), MY_IP.as_bytes()),
@@ -16,7 +18,7 @@ const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), DOMAIN.as_b
 
 #[tokio::main]
 async fn main() {
-    let listener = TcpListener::bind("192.168.121.234:41100").await.unwrap();
+    let listener = TcpListener::bind(format!("{}{}", MY_IP, MY_PORT)).await.unwrap();
     let mut file = File::open("test.com.pfx").unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
@@ -59,7 +61,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num : usize) {
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect("192.168.121.98:41100").await.unwrap();
+    let stream_out = TcpStream::connect(format!("{}{}", DOMAIN, PORT)).await.unwrap();
     let tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
