@@ -7,12 +7,13 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use colored::{Colorize, Color};
 
-const DOMAIN : &str = "192.168.121.98";
-const PORT : &str = ":411000";
-const MY_PORT: &str = ":411000";
-const MY_IP : &str = "192.168.121.234"; //TODO grab this automatically
-const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), DOMAIN.as_bytes()),
-                                                  (DOMAIN.as_bytes(), MY_IP.as_bytes()),
+const TARGET : &str = "192.168.121.98";
+const PORT : &str = ":41100";
+const MY_PORT: &str = ":41100";
+const MY_IP : &str = "192.168.121.144"; //TODO grab this automatically
+const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), TARGET.as_bytes()),
+												  ("192.168.zz".as_bytes(), MY_IP.as_bytes()),
+                                                  (TARGET.as_bytes(), MY_IP.as_bytes()),
 												  ("www.wikipedia.org".as_bytes(), MY_IP.as_bytes()),
                                                   ("fflkskkk".as_bytes(), "W2113dsf".as_bytes())];
 
@@ -37,7 +38,7 @@ async fn main() {
                 stream_num += 2;
                 let acceptor = acceptor.clone();
                 tokio::spawn(async move {
-                    let stream = acceptor.accept(stream).await.unwrap();
+                    let stream = acceptor.accept(stream).await.unwrap(); //an unknown error occured while proccessing the certificate
                     handle_client(stream, stream_num).await;
                 });
             }
@@ -61,7 +62,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num : usize) {
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect(format!("{}{}", DOMAIN, PORT)).await.unwrap();
+    let stream_out = TcpStream::connect(format!("{}{}", TARGET, PORT)).await.unwrap();
     let tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
@@ -161,14 +162,15 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
 
                 println!("Candidates: {:?}", candidates);
 
-                for (c, _) in &outbuf {
+                for (i, (c, _)) in outbuf.iter().enumerate() {
                     candidates = candidates
                         .into_iter()
-                        .filter(|(a, _)| a.first() == Some(c))
-                        .map(|(a, b)| (Vec::from(&a[1..]), b))
+                        .filter(|(a, _)| a.get(i) == Some(c))
+                        //.map(|(a, b)| (Vec::from(&a[1..]), b))
                         .collect::<Vec<_>>();
 
-
+					//println!("filter pass {} {}", c, i);
+					//println!("candidates: {:?}", candidates);
 
                     if candidates.len() == 1 {
                         println!("Found");
@@ -181,7 +183,7 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
                     None => {println!("Caught failed match on {:?}", outbuf);
                              break},
                 };
-
+				println!("replacing with {:?}", candidate);
                 //Replace byte stream
                 outbuf.drain(0..candidate.0.len().clone());
 
