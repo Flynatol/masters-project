@@ -2,6 +2,8 @@ use native_tls::Identity;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Read;
+use std::io::Write;
+use std::fs::OpenOptions;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
@@ -83,7 +85,9 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num : usize) {
 
 async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>, mut write_tls : tokio::io::WriteHalf<TlsStream<TcpStream>>, threadnum : usize) {
         let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
-
+		
+		let mut log = create_log(threadnum).unwrap();
+		
         let colours = vec![
             Color::TrueColor {r : 255,  g : 179, b : 0},
             Color::TrueColor {r : 128,  g : 62,  b : 117},
@@ -204,7 +208,8 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
             outbuf.drain(0..out.len());
 
             out.iter().for_each(|&f| print!("{}", (f as char).to_string().color(*col)));
-            write_tls.write_all(&out).await;
+            log.write_all(&out);
+			write_tls.write_all(&out).await;
 
 
             /*
@@ -219,4 +224,8 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
             }
             */
         }
+}
+
+fn create_log(lognum: usize) -> io::Result<File> {
+        OpenOptions::new().write(true).create(true).truncate(false).open(format!("./logs/thread_{}.log", lognum))
 }
