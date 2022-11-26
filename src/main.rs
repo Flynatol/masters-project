@@ -3,11 +3,12 @@ use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use colored::{Colorize, Color};
+use std::ffi::OsStr;
 
 const TARGET : &str = "192.168.121.98";
 const PORT : &str = ":41100";
@@ -31,6 +32,12 @@ async fn main() {
     );
 
     let mut stream_num = 0;
+	
+	//clean up logs
+	fs::read_dir("./logs").unwrap()
+		.filter(|f| f.as_ref().unwrap().path().extension() == Some(OsStr::new("log")))
+		.for_each(|f| { fs::rename(f.as_ref().unwrap().path().to_str().unwrap(), format!("{}.old", f.unwrap().path().to_str().unwrap())); });
+	
 
     loop {
         let listener = listener.accept().await;
