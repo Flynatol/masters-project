@@ -15,18 +15,18 @@ const PORT : &str = ":41100";
 const MY_PORT: &str = ":41100";
 const MY_IP : &str = "192.168.121.144"; //TODO grab this automatically
 const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), TARGET.as_bytes()),
-												  ("192.168.zz".as_bytes(), MY_IP.as_bytes()),
                                                   (TARGET.as_bytes(), MY_IP.as_bytes()),
 												  ("www.wikipedia.org".as_bytes(), MY_IP.as_bytes()),
-                                                  ("fflkskkk".as_bytes(), "W2113dsf".as_bytes())];
+                                                  ("A8:74:1D:04:9D:4A".as_bytes(), "08:00:27:A6:D5:86".as_bytes())];
+												  
 
 #[tokio::main]
 async fn main() {
     let listener = TcpListener::bind(format!("{}{}", MY_IP, MY_PORT)).await.unwrap();
-    let mut file = File::open("test.com.pfx").unwrap();
+    let mut file = File::open("identity.pfx").unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
-    let identity = Identity::from_pkcs12(&identity, "password").unwrap();
+    let identity = Identity::from_pkcs12(&identity, "test").unwrap();
     let acceptor = TlsAcceptor::from(
         native_tls::TlsAcceptor::new(identity).expect("Failed to construct Identity"),
     );
@@ -214,7 +214,7 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
 
             outbuf.drain(0..out.len());
 
-            out.iter().for_each(|&f| print!("{}", (f as char).to_string().color(*col)));
+            //out.iter().for_each(|&f| print!("{}", format!(" {:x?}", f).color(*col)));
             log.write_all(&out);
 			write_tls.write_all(&out).await;
 
