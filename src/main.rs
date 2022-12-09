@@ -1,22 +1,26 @@
 use native_tls::Identity;
+use tokio::io::AsyncRead;
+use tokio::runtime::Handle;
 use std::collections::VecDeque;
-use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use colored::{Colorize, Color};
 use std::ffi::OsStr;
+use std::sync::{Arc, Mutex};
+use std::iter;
+use itertools::{interleave, Itertools};
+use async_trait::async_trait;
 
 const TARGET : &str = "192.168.121.98";
 const PORT : &str = ":41100";
 const MY_PORT: &str = ":41100";
 const MY_IP : &str = "192.168.121.144"; //TODO grab this automatically
 const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), TARGET.as_bytes()),
-                                                  (TARGET.as_bytes(), MY_IP.as_bytes()),
-												  ("www.wikipedia.org".as_bytes(), MY_IP.as_bytes()),
+                                                  //(TARGET.as_bytes(), MY_IP.as_bytes()),
                                                   ("A8:74:1D:04:9D:4A".as_bytes(), "08:00:27:A6:D5:86".as_bytes())];
 												  
 
@@ -76,23 +80,38 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num : usize) {
         .connect("googlasde.com", stream_out)
         .await
         .unwrap();
-
+	
+	
+	
     let (client_read_tls, client_write_tls) = io::split(tls_stream_client);
     let (server_read_tls, server_write_tls) = io::split(tls_stream_server);
 
-
+	let merged_log = OpenOptions::new().write(true).create(true).truncate(false).open("./logs/combined.log").unwrap();
+	let mut merged_log = Arc::new(Mutex::new(merged_log));
+	
+	let mutex_1 = Arc::clone(&merged_log);
+	let mutex_2 = Arc::clone(&merged_log);
+	
     tokio::spawn(async move {
-        replace_bridge(client_read_tls, server_write_tls, num).await;
+        replace_bridge(client_read_tls, server_write_tls, num, mutex_1).await;
     });
 
     tokio::spawn(async move {
-        replace_bridge(server_read_tls, client_write_tls, num+1).await;
+        replace_bridge(server_read_tls, client_write_tls, num+1, mutex_2).await;
     });
 }
 
-async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>, mut write_tls : tokio::io::WriteHalf<TlsStream<TcpStream>>, threadnum : usize) {
+
+
+
+async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>, mut write_tls : tokio::io::WriteHalf<TlsStream<TcpStream>>, threadnum : usize, merged_log : std::sync::Arc<std::sync::Mutex<std::fs::File>>) {
         let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
 		
+        let mut read_tls = ReplaceStream{
+            stream: read_tls,
+        };
+        
+
 		let mut log = create_log(threadnum).unwrap();
 		
         let colours = vec![
@@ -122,13 +141,7 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
 
 
         loop {
-            let read = match read_tls.read_u8().await {
-                Ok(v) => v,
-                Err(_) => {
-                    println!("Outgoing thread died, terminating thread.");
-                    return;
-                }
-            };
+            let read = read_tls.uread_u8().await;
 
             //Remove all elements that no longer match.
             outbuf = outbuf
@@ -177,11 +190,7 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
                     candidates = candidates
                         .into_iter()
                         .filter(|(a, _)| a.get(i) == Some(c))
-                        //.map(|(a, b)| (Vec::from(&a[1..]), b))
                         .collect::<Vec<_>>();
-
-					//println!("filter pass {} {}", c, i);
-					//println!("candidates: {:?}", candidates);
 
                     if candidates.len() == 1 {
                         println!("Found");
@@ -214,11 +223,12 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
 
             outbuf.drain(0..out.len());
 
-            //out.iter().for_each(|&f| print!("{}", format!(" {:x?}", f).color(*col)));
+            out.iter().for_each(|&f| print!("{}", format!(" {:02x?}", f).color(*col)));
             log.write_all(&out);
 			write_tls.write_all(&out).await;
+			synced_write(&merged_log, threadnum as u8, &out);
 
-
+			
             /*
             while !outbuf.is_empty() {
                 if outbuf.front().unwrap().1.is_empty() {
@@ -235,4 +245,24 @@ async fn replace_bridge(mut read_tls : tokio::io::ReadHalf<TlsStream<TcpStream>>
 
 fn create_log(lognum: usize) -> io::Result<File> {
         OpenOptions::new().write(true).create(true).truncate(false).open(format!("./logs/thread_{}.log", lognum))
+}
+
+fn synced_write(merged_log : &std::sync::Arc<std::sync::Mutex<std::fs::File>>, prefix : u8, data : &Vec<u8>) {
+	let mut file = merged_log.lock().unwrap();
+	let d2 = vec![prefix; data.len()].into_iter().interleave(data.clone().into_iter()).collect::<Vec<_>>();
+	file.write_all(&d2);
+}
+
+struct ReplaceStream<T>{
+    stream : T,
+}
+
+#[async_trait]
+trait Readable { async fn uread_u8(&mut self) -> u8; }
+
+#[async_trait]
+impl<T: tokio::io::AsyncRead + Unpin + Send> Readable for ReplaceStream<T> {
+    async fn uread_u8(&mut self) -> u8 {
+        return self.stream.read_u8().await.unwrap();
+    }
 }
