@@ -1,20 +1,20 @@
 use async_trait::async_trait;
-use colored::{Color, Colorize};
+use colored::{Colorize};
 use colours::COLOURS;
-use itertools::{interleave, Itertools};
+use itertools::{Itertools};
 use native_tls::Identity;
 use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
 use std::io::Write;
-use std::iter;
+
 use std::sync::{Arc, Mutex};
-use tokio::io::AsyncRead;
+
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::runtime::Handle;
-use tokio::stream;
+
+
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 
 mod colours;
@@ -105,7 +105,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num: usize) {
         .truncate(false)
         .open("./logs/combined.log")
         .unwrap();
-    let mut merged_log = Arc::new(Mutex::new(merged_log));
+    let merged_log = Arc::new(Mutex::new(merged_log));
 
     let mutex_1 = Arc::clone(&merged_log);
     let mutex_2 = Arc::clone(&merged_log);
@@ -120,7 +120,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num: usize) {
 }
 
 async fn replace_bridge(
-    mut read_tls: tokio::io::ReadHalf<TlsStream<TcpStream>>,
+    read_tls: tokio::io::ReadHalf<TlsStream<TcpStream>>,
     mut write_tls: tokio::io::WriteHalf<TlsStream<TcpStream>>,
     threadnum: usize,
     merged_log: std::sync::Arc<std::sync::Mutex<std::fs::File>>,
@@ -327,7 +327,7 @@ impl<T: tokio::io::AsyncRead + Unpin + Send> Readable for ReplaceStream<'_, T> {
         add_to_buffer.append(&mut self.buffer);
         self.buffer = add_to_buffer;
 
-        if let Some((a, &b)) = matches {
+        if let Some((_a, &b)) = matches {
             (b)(self);
         }
 
