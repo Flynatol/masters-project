@@ -1,5 +1,3 @@
-use async_trait::async_trait;
-use bytes::Bytes;
 use colored::Colorize;
 use colours::COLOURS;
 use itertools::Itertools;
@@ -7,22 +5,18 @@ use native_tls::Identity;
 use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
-use std::future::Future;
 use std::io::Read;
 use std::io::Write;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::time::{sleep, Duration};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
-use tokio_stream::Stream;
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
 
 mod colours;
-
 mod replace_stream;
+
 use crate::replace_stream::replace_mod::replacment_builder;
 
 const TARGET: &str = "192.168.121.98";
@@ -141,7 +135,6 @@ async fn replace_bridge(
             //("Dieses".as_bytes(), (|f| f.replace("Dieses".as_bytes(), "testedd".as_bytes())))
         ],
     );
-
 
     let mut log = create_log(threadnum).unwrap();
 
