@@ -1,24 +1,24 @@
 use async_trait::async_trait;
-use colored::{Colorize};
+use bytes::Bytes;
+use colored::Colorize;
 use colours::COLOURS;
-use itertools::{Itertools};
+use itertools::Itertools;
 use native_tls::Identity;
-use tokio_stream::Stream;
 use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::future::Future;
 use std::io::Read;
 use std::io::Write;
-use tokio::time::{sleep, Duration};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use bytes::Bytes;
+use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::time::{sleep, Duration};
+use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
+use tokio_stream::Stream;
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
-use tokio::io::{self, AsyncReadExt, AsyncRead, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 
 mod colours;
 
@@ -34,7 +34,6 @@ const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[
     (
         "A8:74:1D:04:9D:4A".as_bytes(),
         "08:00:27:A6:D5:86".as_bytes(),
-        
     ),
     ("Dieses".as_bytes(), "WOLOLOLOLO".as_bytes()),
 ];
@@ -62,7 +61,8 @@ async fn main() {
             fs::rename(
                 f.as_ref().unwrap().path().to_str().unwrap(),
                 format!("{}.old", f.unwrap().path().to_str().unwrap()),
-            ).expect("Failed to rename");
+            )
+            .expect("Failed to rename");
         });
 
     loop {
@@ -135,49 +135,20 @@ async fn replace_bridge(
 ) {
     let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
 
-    /*
-    let mut read_tls = ReplaceStream {
-        stream: read_tls,
-        buffer: VecDeque::new(),
-        triggers: vec![
-            ("Dieses".as_bytes(), (|f| f.replace("Dieses".as_bytes(), "TESTSSTSTSTSTASDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD".as_bytes())))
-        ],
-        num: threadnum,
-        debug_calls: 0,
-    };
-     */
-    /* */
-
-
-
-    let mut read_tls = replacment_builder (
+    let mut read_tls = replacment_builder(
         ReaderStream::new(read_tls),
         vec![
             //("Dieses".as_bytes(), (|f| f.replace("Dieses".as_bytes(), "testedd".as_bytes())))
-        ]
+        ],
     );
 
-    /*
-    while let Some(v) = read_tls.next().await {
-        println!("GOT = {:?}", v);
-        write_tls.write_u8(v).await;
-    }
-    */
-    //read_tls.next();
-    //read_tls.
-    //read_tls.next
-    
+
     let mut log = create_log(threadnum).unwrap();
 
     let col = COLOURS.get(threadnum % COLOURS.len()).unwrap();
-    
+
     loop {
-        println!("Hello from thread {}! ", threadnum);
         let read = read_tls.next().await.unwrap();
-        
-        //let read = read_tls.read_u8().await.unwrap();
-        print!("Read {:?}", read);
-        print!("D");
 
         //Remove all elements that no longer match.
         outbuf = outbuf
@@ -202,8 +173,7 @@ async fn replace_bridge(
             .filter(|&f| f.first() == Some(&read))
             .map(|f| VecDeque::from(f.to_vec()))
             .collect::<Vec<_>>();
-        
-        print!("1");
+
         outbuf.push_back((read, newfilt));
 
         //Pop front off all remaining elements
@@ -212,7 +182,6 @@ async fn replace_bridge(
                 f.pop_front();
             })
         });
-        print!("1.5");
         //Rebuild the completion and edit the buffer.
         if det {
             let mut candidates = REPLACEMENTS
@@ -222,7 +191,6 @@ async fn replace_bridge(
                 .collect::<Vec<_>>();
 
             println!("Candidates: {:?}", candidates);
-            print!("2");
             for (i, (c, _)) in outbuf.iter().enumerate() {
                 candidates = candidates
                     .into_iter()
@@ -243,9 +211,9 @@ async fn replace_bridge(
                 }
             };
             println!("replacing with {:?}", candidate);
+
             //Replace byte stream
             outbuf.drain(0..candidate.0.len().clone());
-            print!("3");
             let mut oldoutbuf = outbuf;
 
             outbuf = candidate
@@ -256,9 +224,8 @@ async fn replace_bridge(
                 .collect::<VecDeque<_>>();
             outbuf.append(&mut oldoutbuf);
         }
-        print!("4");
+
         //write unmatched bytes to output stream
-        //Somehow this version is faster?
         let out = outbuf
             .iter()
             .take_while(|(_, s)| s.is_empty())
@@ -266,36 +233,12 @@ async fn replace_bridge(
             .collect::<Vec<_>>();
 
         outbuf.drain(0..out.len());
-        
-        print!("5: out iter ");
-        //out.iter()
-        //    .for_each(|&f| print!("{}", format!(" {:02x?}", f).color(*col)));
-        print!("PR");
-        log.write_all(&out);
-        print!("W");
-        write_tls.write_all(&out).await;
-        print!("E");
-        synced_write(&merged_log, threadnum as u8, &out);
-        println!("END");
-        /*
-        while !outbuf.is_empty() {
-            if outbuf.front().unwrap().1.is_empty() {
-                let v = outbuf.pop_front().unwrap();
-                print!("{}", (v.0 as char).to_string().color(*col));
-                write_tls.write_u8(v.0).await.unwrap();
-            }else {
-                break;
-            }
-        }
-        
+
         print!("{}", format!(" {:02x?}", read).color(*col));
         log.write_all(&[read]);
         write_tls.write_all(&[read]).await;
         synced_write(&merged_log, threadnum as u8, &vec![read]);
-        */
-        
     }
-     
 }
 
 fn create_log(lognum: usize) -> io::Result<File> {
@@ -318,163 +261,3 @@ fn synced_write(
         .collect::<Vec<_>>();
     file.write_all(&d2);
 }
-
-struct ReplaceStream<'a, T: tokio::io::AsyncRead> {
-    stream: T,
-    buffer: VecDeque<u8>,
-    triggers: Vec<(&'a [u8], fn(&mut ReplaceStream<T>) -> ())>,
-    num: usize,
-    debug_calls: usize,
-}
-/*
-#[async_trait]
-trait Readable {
-    async fn uread_u8(&mut self) -> u8;
-    fn replace(&mut self, target: &[u8], repl: &[u8]);
-    async fn first_unified<S: tokio::io::AsyncRead + Unpin + Send>(
-        buffer: &mut VecDeque<u8>,
-        stream: &mut S,
-    ) -> u8;
-}
-*/
-
-//#[async_trait]
-impl<T: tokio::io::AsyncRead + Unpin + Send> ReplaceStream<'_, T> {
-    async fn uread_u8(&mut self) -> u8 {
-        //check triggers for match
-        //if match move read byte into buffer and keep track of possible matches
-        //keep reading until zero or one matches
-        //if one run the function associated with it
-
-        //Where we store everything we read so we can put it back.
-        let mut add_to_buffer: VecDeque<u8> = VecDeque::new();
-
-        let mut matches;
-
-        let mut loc_triggers = self
-            .triggers
-            .iter()
-            .map(|(a, b)| (&a[..], b))
-            .collect::<Vec<_>>();
-
-        println!("Reading in t {}", self.num);
-        loop {
-            //print!("E");
-            let read =
-                ReplaceStream::<T>::first_unified(&mut self.buffer, &mut self.stream, self.num, &mut self.debug_calls).await;
-            
-            println!("Read in t {}", self.num);
-            add_to_buffer.push_back(read);
-
-            loc_triggers = loc_triggers
-                .into_iter()
-                .filter(|(x, _)| x.first() == Some(&read))
-                .map(|(a, b)| (&a[1..], b))
-                .collect::<Vec<_>>();
-            
-            //println!("pos trig: {} ", loc_triggers.len());
-            matches = loc_triggers.iter().filter(|(x, _)| x.is_empty()).next();
-
-            if matches.is_some() || loc_triggers.is_empty() {
-                break;
-            }
-        }
-
-        add_to_buffer.append(&mut self.buffer);
-        self.buffer = add_to_buffer;
-
-        if let Some((_a, &b)) = matches {
-            (b)(self);
-        }
-        
-        //println!("lenA {}", self.buffer.len());
-        //print!("L");
-        println!("Outputting in t {}", self.num);
-        ReplaceStream::<T>::first_unified(&mut self.buffer, &mut self.stream, self.num, &mut self.debug_calls).await
-    }
-
-    //After detection logic is called we modify buffer
-    //We can assume the target is already our buffer
-    fn replace(&mut self, target: &[u8], repl: &[u8]) {
-        //println!("Buf before: {:?}", self.buffer);
-        self.buffer.drain(0..target.len());
-        let mut new = VecDeque::from(repl.to_vec());
-        new.append(&mut self.buffer);
-        self.buffer = new;
-        //println!("Buf after: {:?}", self.buffer);
-    }
-
-    async fn first_unified<S: tokio::io::AsyncRead + Unpin + Send>(
-        buffer: &mut VecDeque<u8>,
-        stream: &mut S,
-        num: usize,
-        debug: &mut usize,
-        
-    ) -> u8 {
-        println!("unified in t {}", num);
-        let mut ret : Option<u8> = None;
-        //while ret.is_none(){
-            if !buffer.is_empty() {
-                ret = buffer.pop_front();
-                println!("buf in t {}", num);
-            } else {
-            //This could hang, we might not be receiving any more data
-                //ret = match stream.read_u8().await {
-                //    Ok(x) => Some(x),
-                //   Err(_) => None,
-                //}
-                //return stream.read_u8().await.unwrap()
-                *debug += 1;
-                while ret == None {
-                    println!("ret in t {}", num);
-                    ret = match stream.read_u8().await {
-                        Ok(x) => Some(x),
-                        Err(e) => {
-                            sleep(Duration::from_millis(100)).await;
-                            println!("Polling {} {:?}", num, e);
-                            None
-                        },
-                    };
-                }
-
-                
-                
-
-            }
-            //println!("Waiting...");
-        //}
-        println!("unified ret in t {} debug: {}", num, debug);
-
-        ret.unwrap()
-    }
-}
-
-/*
-impl <T: tokio::io::AsyncRead + Unpin> AsyncRead for ReplaceStream<'_, T> {
-    fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut io::ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        res = Pin::new(&mut self.stream).poll_read(cx, buf);
-        std::task::Poll::Ready(())
-    }
-}
-
-
-
-pub struct Wrapper<T: AsyncRead + Unpin>{
-    inner: T
-}
-
-impl<T: AsyncRead + std::marker::Unpin> AsyncRead for Wrapper<T> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut io::ReadBuf<'_>,
-    ) -> std::task::Poll<io::Result<()>> {
-        Pin::new(&mut self.inner).poll_read(cx, buf)
-    }
-}
- */
-
