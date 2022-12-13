@@ -12,6 +12,9 @@ tokio = { version = "1.21.2", features = ['full'] }
 colored = "2.0.0"
 itertools = "0.10.5"
 async-trait = "0.1.59"
+tokio-util = { version = "0.7.4", features = ['io'] }
+tokio-stream = "0.1.11"
+bytes = "1.3.0"
 
 [patch.crates-io]
 openssl-src = { path = "./patched-deps/openssl-src-111.24.0+1.1.1s" }
