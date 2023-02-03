@@ -115,12 +115,14 @@ pub mod replace_mod {
     impl<T: tokio_stream::Stream<Item = Result<Bytes, std::io::Error>> + std::marker::Unpin>
         ReplaceStream<T>
     {
+        /*
         pub fn replace(&mut self, target: &[u8], repl: &[u8]) {
             self.buffer.drain(0..target.len());
             let mut new = VecDeque::from(repl.to_vec());
             new.append(&mut self.buffer);
             self.buffer = new;
         }
+        */
 
         pub fn replace_vec(&mut self, target: &Vec<u8>, repl: &Vec<u8>) {
             println!("replacment triggered");
@@ -131,13 +133,16 @@ pub mod replace_mod {
         }
 
         pub fn message<S : Copy + Send + Sync + 'static>(sender: mpsc::SyncSender<S>, message: S) -> Arc<dyn Fn(&mut ReplaceStream<T>) -> () + Send + Sync> {
-            Arc::new(move |_x| {sender.send(message);})
+            Arc::new(move |_x| {sender.send(message).expect("Error: Reciver disconnected");})
         }
 
 
         pub fn rpl_boxed (target: Vec<u8>, repl: Vec<u8>) -> Arc<dyn Fn(&mut ReplaceStream<T>) -> () + Send + Sync> {
             Arc::new(move|x| x.replace_vec(&target, &repl))
+        }
 
+        pub fn rpl_util(target: Vec<u8>, repl: Vec<u8>) -> (Vec<u8>, Arc<dyn Fn(&mut ReplaceStream<T>) -> () + Send + Sync>) {
+            (target.clone(), Self::rpl_boxed(target, repl))
         }
     }
 }

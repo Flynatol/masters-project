@@ -63,8 +63,9 @@ async fn main() {
                 stream_num += 2;
                 let acceptor = acceptor.clone();
                 tokio::spawn(async move {
-                    let stream = acceptor.accept(stream).await.unwrap(); //an unknown error occured while proccessing the certificate
-                    handle_client(stream, stream_num).await;
+                    if let Ok(stream) = acceptor.accept(stream).await {
+                        handle_client(stream, stream_num).await;
+                    } 
                 });
             }
             Err(_) => {
@@ -124,7 +125,7 @@ async fn replace_bridge(
     threadnum: usize,
     merged_log: std::sync::Arc<std::sync::Mutex<std::fs::File>>,
 ) {
-    let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
+    //let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
 
     let mut read_tls = replacment_builder(
         read_tls,
@@ -138,92 +139,13 @@ async fn replace_bridge(
     let col = COLOURS.get(threadnum % COLOURS.len()).unwrap();
 
     loop {
-        let read = read_tls.next().await.unwrap();
-
-        //Remove all elements that no longer match.
-        outbuf = outbuf
-            .into_iter()
-            .map(|(u, v)| {
-                (
-                    u,
-                    v.into_iter().filter(|f| f.front() == Some(&read)).collect(),
-                )
-            })
-            .collect::<VecDeque<_>>();
-
-        //Detect a completion
-        let det = outbuf
-            .iter()
-            .any(|(_, b)| b.iter().any(|l| l.len() == 1 && l.contains(&read)));
-
-        //Add new element to the queue
-        let newfilt = REPLACEMENTS
-            .into_iter()
-            .map(|(f, _s)| *f)
-            .filter(|&f| f.first() == Some(&read))
-            .map(|f| VecDeque::from(f.to_vec()))
-            .collect::<Vec<_>>();
-
-        outbuf.push_back((read, newfilt));
-
-        //Pop front off all remaining elements
-        outbuf.iter_mut().for_each(|(_, v)| {
-            v.iter_mut().for_each(|f| {
-                f.pop_front();
-            })
-        });
-        
-        //Rebuild the completion and edit the buffer.
-        if det {
-            let mut candidates = REPLACEMENTS
-                .to_vec()
-                .iter()
-                .map(|(a, b)| (a.to_vec(), b.to_vec()))
-                .collect::<Vec<_>>();
-
-            println!("Candidates: {:?}", candidates);
-            for (i, (c, _)) in outbuf.iter().enumerate() {
-                candidates = candidates
-                    .into_iter()
-                    .filter(|(a, _)| a.get(i) == Some(c))
-                    .collect::<Vec<_>>();
-
-                if candidates.len() == 1 {
-                    println!("Found");
-                    break;
-                }
-            }
-
-            let candidate = match candidates.first() {
-                Some(x) => x,
-                None => {
-                    println!("Caught failed match on {:?}", outbuf);
-                    break;
-                }
-            };
-            println!("replacing with {:?}", candidate);
-
-            //Replace byte stream
-            outbuf.drain(0..candidate.0.len().clone());
-            let mut oldoutbuf = outbuf;
-
-            outbuf = candidate
-                .to_owned()
-                .1
-                .into_iter()
-                .map(|f| (f, Vec::new()))
-                .collect::<VecDeque<_>>();
-            outbuf.append(&mut oldoutbuf);
-        }
-
-        //write unmatched bytes to output stream
-        let out = outbuf
-            .iter()
-            .take_while(|(_, s)| s.is_empty())
-            .map(|(a, _)| a.clone())
-            .collect::<Vec<_>>();
-
-        outbuf.drain(0..out.len());
+        let read= match read_tls.next().await {
+            Some(num) => num,
+            None => {
+                println!("Thread {threadnum} timed out.");
+                return;
+            },
+        };
 
         print!("{}", format!(" {:02x?}", read).color(*col));
         log.write_all(&[read]);

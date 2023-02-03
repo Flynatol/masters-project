@@ -1,10 +1,6 @@
 
 use replace_stream::replace_mod::ReplaceStream;
 use tokio_stream::StreamExt;
-
-
-
-
 use std::fs;
 use tokio::io::{self, AsyncWriteExt, ReadHalf};
 use tokio::net::{TcpStream};
@@ -12,11 +8,8 @@ use tokio_native_tls::{TlsConnector, TlsStream};
 use colored::{Colorize, Color};
 use std::io::{Write};
 use std::ffi::OsStr;
-
-
 use tokio_util::io::ReaderStream;
 use std::sync::mpsc;
-
 use std::time::{Instant};
 use replace_stream::replace_mod::replacment_builder;
 
