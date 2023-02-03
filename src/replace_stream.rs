@@ -2,26 +2,29 @@ pub mod replace_mod {
     use bytes::Bytes;
     use std::collections::VecDeque;
     use std::pin::Pin;
+    use tokio_util::io::ReaderStream;
+    use std::sync::mpsc;
 
-    pub struct ReplaceStream2<'a, T: tokio_stream::Stream + std::marker::Unpin> {
+
+    pub struct ReplaceStream<'a, T: tokio_stream::Stream + std::marker::Unpin> {
         stream: T,
-        buffer: VecDeque<u8>,
-        triggers: Vec<(&'a [u8], fn(&mut ReplaceStream2<T>) -> ())>,
+        pub buffer: VecDeque<u8>,
+        pub triggers: Vec<(&'a [u8], fn(&mut ReplaceStream<T>) -> ())>,
     }
 
-    pub fn replacment_builder<'a, T: tokio_stream::Stream + std::marker::Unpin>(
+    pub fn replacment_builder<'a, T: tokio::io::AsyncRead + std::marker::Unpin>(
         stream: T,
-        triggers: Vec<(&'a [u8], fn(&mut ReplaceStream2<T>) -> ())>,
-    ) -> ReplaceStream2<T> {
-        ReplaceStream2 {
-            stream,
+        triggers: Vec<(&'a [u8], fn(&mut ReplaceStream<ReaderStream<T>>) -> ())>,
+    ) -> ReplaceStream<ReaderStream<T>> {
+        ReplaceStream {
+            stream: ReaderStream::new(stream),
             buffer: VecDeque::new(),
             triggers,
         }
     }
 
     impl<T: tokio_stream::Stream<Item = Result<Bytes, std::io::Error>> + std::marker::Unpin>
-        tokio_stream::Stream for ReplaceStream2<'_, T>
+        tokio_stream::Stream for ReplaceStream<'_, T>
     {
         type Item = u8;
 
@@ -105,13 +108,17 @@ pub mod replace_mod {
     }
 
     impl<T: tokio_stream::Stream<Item = Result<Bytes, std::io::Error>> + std::marker::Unpin>
-        ReplaceStream2<'_, T>
+        ReplaceStream<'_, T>
     {
-        fn replace(&mut self, target: &[u8], repl: &[u8]) {
+        pub fn replace(&mut self, target: &[u8], repl: &[u8]) {
             self.buffer.drain(0..target.len());
             let mut new = VecDeque::from(repl.to_vec());
             new.append(&mut self.buffer);
             self.buffer = new;
+        }
+
+        pub fn message<S>(&mut self, sender: mpsc::Sender<S>, message: S) {
+            sender.send(message);
         }
     }
 }

@@ -29,7 +29,7 @@ const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[
         "A8:74:1D:04:9D:4A".as_bytes(),
         "08:00:27:A6:D5:86".as_bytes(),
     ),
-    ("Dieses".as_bytes(), "WOLOLOLOLO".as_bytes()),
+    //("Dieses".as_bytes(), "WOLOLOLOLO".as_bytes()),
 ];
 
 #[tokio::main]
@@ -93,6 +93,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num: usize) {
     let stream_out = TcpStream::connect(format!("{}{}", TARGET, PORT))
         .await
         .unwrap();
+        
     let tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
@@ -107,6 +108,7 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num: usize) {
         .truncate(false)
         .open("./logs/combined.log")
         .unwrap();
+
     let merged_log = Arc::new(Mutex::new(merged_log));
 
     let mutex_1 = Arc::clone(&merged_log);
@@ -130,9 +132,9 @@ async fn replace_bridge(
     let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
 
     let mut read_tls = replacment_builder(
-        ReaderStream::new(read_tls),
+        read_tls,
         vec![
-            //("Dieses".as_bytes(), (|f| f.replace("Dieses".as_bytes(), "testedd".as_bytes())))
+            //("Dieses".as_bytes(), (|f| f.replace("Dieses".as_bytes(), "tested".as_bytes())))
         ],
     );
 
