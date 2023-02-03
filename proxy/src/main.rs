@@ -8,16 +8,13 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Read;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{self, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use tokio_stream::StreamExt;
-use tokio_util::io::ReaderStream;
+
 use replace_stream::replace_mod::replacment_builder;
 mod colours;
-//mod replace_stream;
-
-//use crate::replace_stream::replace_mod::replacment_builder;
 
 const TARGET: &str = "192.168.121.98";
 const PORT: &str = ":41100";
@@ -29,7 +26,6 @@ const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[
         "A8:74:1D:04:9D:4A".as_bytes(),
         "08:00:27:A6:D5:86".as_bytes(),
     ),
-    //("Dieses".as_bytes(), "WOLOLOLOLO".as_bytes()),
 ];
 
 #[tokio::main]
@@ -76,7 +72,6 @@ async fn main() {
             }
         }
     }
-    //Ok(())
 }
 
 async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num: usize) {
@@ -177,6 +172,7 @@ async fn replace_bridge(
                 f.pop_front();
             })
         });
+        
         //Rebuild the completion and edit the buffer.
         if det {
             let mut candidates = REPLACEMENTS
