@@ -13,11 +13,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
-
+use replace_stream::replace_mod::replacment_builder;
 mod colours;
-mod replace_stream;
+//mod replace_stream;
 
-use crate::replace_stream::replace_mod::replacment_builder;
+//use crate::replace_stream::replace_mod::replacment_builder;
 
 const TARGET: &str = "192.168.121.98";
 const PORT: &str = ":41100";
