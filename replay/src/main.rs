@@ -1,23 +1,23 @@
-use native_tls::Identity;
+
 use replace_stream::replace_mod::ReplaceStream;
 use tokio_stream::StreamExt;
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::fs::File;
-use std::fs::OpenOptions;
+
+
+
+
 use std::fs;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt, ReadHalf};
-use tokio::net::{TcpListener, TcpStream};
-use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
+use tokio::io::{self, AsyncWriteExt, ReadHalf};
+use tokio::net::{TcpStream};
+use tokio_native_tls::{TlsConnector, TlsStream};
 use colored::{Colorize, Color};
-use std::io::{stdin, stdout, Read, Write};
+use std::io::{Write};
 use std::ffi::OsStr;
-use itertools::{interleave, Itertools};
-use bytes::Bytes;
+
+
 use tokio_util::io::ReaderStream;
 use std::sync::mpsc;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+
+use std::time::{Instant};
 use replace_stream::replace_mod::replacment_builder;
 
 
@@ -66,7 +66,7 @@ async fn main() {
 	
 
     let stream_out = TcpStream::connect(format!("{}{}", TARGET, PORT)).await.unwrap();
-    let mut tls_stream_server = connector
+    let tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
         .unwrap();
@@ -94,7 +94,7 @@ async fn main() {
 		} else {
 			let rec = server_read_tls.next().await.expect("No data recived");
 
-			if let Ok(x) = rx.try_recv() {
+			if let Ok(_x) = rx.try_recv() {
 				println!("SIGNAL");
 				//Do the buffer modifications here
 				//Skip as many bytes in the file as we consume from stream to keep them in sync.
@@ -102,12 +102,12 @@ async fn main() {
 				
 				let mut trg = vec![];
 
-				for _ in (0..3) {
+				for _ in 0..3 {
 					//server_read_tls.next().await;
 					println!("skp: {:02x?}", server_read_tls.next().await.unwrap())
 				}
 
-				for _ in (0..4) {
+				for _ in 0..4 {
 					let byte = server_read_tls.next().await.unwrap();
 					println!("trg {:02x?}", byte);
 					trg.push(0x04);
@@ -118,7 +118,7 @@ async fn main() {
 				
 				let mut to_replace = vec![];
 
-				for i in (0..7) {
+				for i in 0..7 {
 					let v = file_stream.next().await.unwrap();
 					println!("skp f: {:02x?}", v);
 					if i % 2 == 1 {
@@ -126,7 +126,7 @@ async fn main() {
 					}
 				}
 
-				for i in (0..7) {
+				for i in 0..7 {
 					let v = file_stream.next().await.unwrap();
 					println!("skp f: {:02x?}", v);
 					if i % 2 == 0 {
