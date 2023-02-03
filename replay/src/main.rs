@@ -42,9 +42,9 @@ async fn main() {
     );
 
 	//clean up logs
-	fs::read_dir("./logs").unwrap()
-		.filter(|f| f.as_ref().unwrap().path().extension() == Some(OsStr::new("log")))
-		.for_each(|f| { fs::rename(f.as_ref().unwrap().path().to_str().unwrap(), format!("{}.old", f.unwrap().path().to_str().unwrap())); });
+	//fs::read_dir("./logs").unwrap()
+	//	.filter(|f| f.as_ref().unwrap().path().extension() == Some(OsStr::new("log")))
+	//	.for_each(|f| { fs::rename(f.as_ref().unwrap().path().to_str().unwrap(), format!("{}.old", f.unwrap().path().to_str().unwrap())); });
 
 	let test = tokio::fs::File::open("payload_program.log").await.expect("Could not read file");
 

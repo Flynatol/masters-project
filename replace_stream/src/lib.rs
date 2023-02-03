@@ -96,8 +96,6 @@ pub mod replace_mod {
 
                 matches = loc_triggers.iter().filter(|(x, _)| x.is_empty()).next();
 
-                //println!("Read: {:02x?}, matches: {}", read, loc_triggers.len());
-
                 if matches.is_some() || loc_triggers.is_empty() {
                     break;
                 }
@@ -106,24 +104,10 @@ pub mod replace_mod {
             add_to_buffer.append(&mut sref.buffer);
             sref.buffer = add_to_buffer;
 
-            //This bit is dumb but I can't see how else to please the borrow checker
-            let mut c = None;
-            if let Some(&(_a, b)) = matches {
-                c = Some(b.clone());
+            if let Some(func) = matches.map(|(_, b)| b.clone()) {
+                (func.clone())(sref)
             }
-
-            match c {
-                Some(a) => (a)(sref),
-                None => {},
-            }
-
-            //if let c = Some(a) {
-            //    (a)(sref);
-            //}
-             
-
             
-            //let res = sref.buffer.pop_front();
             std::task::Poll::Ready(sref.buffer.pop_front())
         }
     }
@@ -147,14 +131,11 @@ pub mod replace_mod {
         }
 
         pub fn message<S : Copy + Send + Sync + 'static>(sender: mpsc::SyncSender<S>, message: S) -> Arc<dyn Fn(&mut ReplaceStream<T>) -> () + Send + Sync> {
-            println!("message");
-            //sender.send(message);
             Arc::new(move |_x| {sender.send(message);})
         }
 
 
         pub fn rpl_boxed (target: Vec<u8>, repl: Vec<u8>) -> Arc<dyn Fn(&mut ReplaceStream<T>) -> () + Send + Sync> {
-            //Box::new(move |x| x.replace_vec(&target, &repl))
             Arc::new(move|x| x.replace_vec(&target, &repl))
 
         }
