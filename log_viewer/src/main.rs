@@ -167,7 +167,7 @@ fn run_app<B: Backend>(
                     KeyCode::Up => app.items.previous(),
                     _ => {}
                 }
-
+                terminal.draw(|f| ui(f, &mut app))?;
             }
         }
         if last_tick.elapsed() >= tick_rate {
