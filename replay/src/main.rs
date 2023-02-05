@@ -1,13 +1,11 @@
 
 use replace_stream::replace_mod::ReplaceStream;
 use tokio_stream::StreamExt;
-use std::fs;
 use tokio::io::{self, AsyncWriteExt, ReadHalf};
 use tokio::net::{TcpStream};
 use tokio_native_tls::{TlsConnector, TlsStream};
 use colored::{Colorize, Color};
 use std::io::{Write};
-use std::ffi::OsStr;
 use tokio_util::io::ReaderStream;
 use std::sync::mpsc;
 use std::time::{Instant};
@@ -16,13 +14,6 @@ use replace_stream::replace_mod::replacment_builder;
 
 const TARGET : &str = "192.168.121.98";
 const PORT : &str = ":41100";
-const MY_PORT: &str = ":41100";
-const MY_IP : &str = "192.168.121.144"; //TODO grab this automatically
-const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[(MY_IP.as_bytes(), TARGET.as_bytes()),
-												  ("192.168.zz".as_bytes(), MY_IP.as_bytes()),
-                                                  (TARGET.as_bytes(), MY_IP.as_bytes()),
-												  ("www.wikipedia.org".as_bytes(), MY_IP.as_bytes()),
-                                                  ("fflkskkk".as_bytes(), "W2113dsf".as_bytes())];
 
 #[tokio::main]
 async fn main() {
