@@ -6,10 +6,10 @@ use crossterm::{
 use itertools::Itertools;
 use std::{
     error::Error,
-    io,
-    io::{Read, BufReader},
-    time::{Duration, Instant},
     fs::File,
+    io,
+    io::{BufReader, Read},
+    time::{Duration, Instant},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -78,7 +78,7 @@ struct App {
 }
 
 impl App {
-    fn new(i : Vec<(Vec<u8>, u8)>) -> App {
+    fn new(i: Vec<(Vec<u8>, u8)>) -> App {
         App {
             items: StatefulList::with_items(i),
         }
@@ -96,31 +96,28 @@ fn main() -> Result<(), Box<dyn Error>> {
     let f = File::open("./payload.log")?;
     let mut reader = BufReader::new(f);
     let mut buffer = Vec::new();
-    
+
     // Read file into vector.
     reader.read_to_end(&mut buffer)?;
-    
 
     let t = buffer.into_iter().tuples::<(u8, u8)>().fold(
         (Vec::<(Vec<u8>, u8)>::new()),
-        |mut out, (tag, byte)| {
-            match out.last().map(|f| f.1) {
-                Some(lr) if lr == tag => {
-                    out.last_mut().unwrap().0.push(byte);
-                    return out;
-                },
-                _ => {
-                    out.push((vec![byte], tag));
-                    return out;
-                },
+        |mut out, (tag, byte)| match out.last().map(|f| f.1) {
+            Some(lr) if lr == tag => {
+                out.last_mut().unwrap().0.push(byte);
+                return out;
             }
-        } 
+            _ => {
+                out.push((vec![byte], tag));
+                return out;
+            }
+        },
     );
 
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -128,7 +125,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tick_rate = Duration::from_millis(50);
     let app = App::new(t);
     let res = run_app(&mut terminal, app, tick_rate);
-    
+
     // restore terminal
     disable_raw_mode()?;
     execute!(
@@ -152,12 +149,14 @@ fn run_app<B: Backend>(
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     terminal.draw(|f| ui(f, &mut app))?;
+    let mut update = false;
     loop {
         //terminal.draw(|f| ui(f, &mut app))?;
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or_else(|| Duration::from_secs(0));
+
         if crossterm::event::poll(Duration::from_millis(0))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
@@ -168,21 +167,34 @@ fn run_app<B: Backend>(
                     _ => {}
                 }
                 terminal.draw(|f| ui(f, &mut app))?;
+                //terminal.draw(|f| ui(f, &mut app))?;
+                //update = true;
             }
         }
+
         if last_tick.elapsed() >= tick_rate {
             app.on_tick();
             last_tick = Instant::now();
+            //if update {
+            //    terminal.draw(|f| ui(f, &mut app))?;
+            //    update = false;
+            //}
         }
     }
 }
 
 fn utf8_formatter(bytes: &Vec<u8>, width: u16) -> Vec<String> {
-    bytes.chunks(width.into()).map(|f| String::from_utf8_lossy(f).to_string()).collect::<Vec<_>>()
+    bytes
+        .chunks(width.into())
+        .map(|f| String::from_utf8_lossy(f).to_string())
+        .collect::<Vec<_>>()
 }
 
 fn hex_formatter(bytes: &Vec<u8>, width: u16) -> Vec<String> {
-    bytes.chunks((width/3 - 1).into()).map(|f| format!("{:02x?}", f).replace(&[',', '[', ']'][..], "")).collect::<Vec<_>>()
+    bytes
+        .chunks((width / 3 - 1).into())
+        .map(|f| format!("{:02x?}", f).replace(&[',', '[', ']'][..], ""))
+        .collect::<Vec<_>>()
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
@@ -195,28 +207,37 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let width = chunks[0].width;
 
     // Iterate through all elements in the `items` app and append some debug text to it.
-    fn format_items(app : &Vec<(Vec<u8>, u8)>, width: u16, formatter: fn(&Vec<u8>, u16) -> Vec<String>) -> Vec<ListItem> {
-        app
-        .iter()
-        .map(|i| {
-            let lines = formatter(&i.0, width).into_iter().map(|f| Spans::from(f)).collect::<Vec<_>>();
-            let colour = if i.1 % 2 == 0 {Color::Red} else {Color::Green};
-            ListItem::new(lines).style(Style::default().fg(colour))
-        })
-        .collect()
+    fn format_items(
+        app: &Vec<(Vec<u8>, u8)>,
+        width: u16,
+        formatter: fn(&Vec<u8>, u16) -> Vec<String>,
+    ) -> Vec<ListItem> {
+        app.iter()
+            .map(|i| {
+                let lines = formatter(&i.0, width)
+                    .into_iter()
+                    .map(|f| Spans::from(f))
+                    .collect::<Vec<_>>();
+                let colour = if i.1 % 2 == 0 {
+                    Color::Red
+                } else {
+                    Color::Green
+                };
+                ListItem::new(lines).style(Style::default().fg(colour))
+            })
+            .collect()
     }
 
-    
     // Create a List from all list items and highlight the currently selected one
-    fn itemize<'a>(items : Vec<ListItem<'a>>, title: &'a str) -> List<'a> {
+    fn itemize<'a>(items: Vec<ListItem<'a>>, title: &'a str) -> List<'a> {
         List::new(items)
             .block(Block::default().borders(Borders::ALL).title(title))
             .highlight_style(
                 Style::default()
                     .bg(Color::DarkGray)
                     .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">")
+            )
+        //.highlight_symbol(">")
     }
 
     let hex_items: Vec<ListItem> = format_items(&app.items.items, width, hex_formatter);
@@ -224,7 +245,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     let utf8_items: Vec<ListItem> = format_items(&app.items.items, width, utf8_formatter);
     let utf8_items = itemize(utf8_items, "UTF-8");
-
 
     // We can now render the item list
     f.render_stateful_widget(hex_items, chunks[0], &mut app.items.state);
