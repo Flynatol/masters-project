@@ -187,10 +187,14 @@ fn run_app<B: Backend>(
 }
 
 fn utf8_formatter(bytes: &Vec<u8>, width: u16) -> Vec<String> {
-    bytes
+    let bytes2 = bytes.split(|&i| i == 10).map(|f| f.to_vec()).collect::<Vec<_>>();
+
+    bytes2.into_iter().map(|f|
+    f
         .chunks(width.into())
         .map(|f| String::from_utf8_lossy(f).to_string())
         .collect::<Vec<_>>()
+    ).flatten().collect::<Vec<_>>()
 }
 
 fn hex_formatter(bytes: &Vec<u8>, width: u16) -> Vec<String> {
@@ -215,8 +219,18 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         width: u16,
         formatter: fn(&Vec<u8>, u16) -> Vec<String>,
     ) -> Vec<ListItem> {
-        app.iter()
+        let t = app.iter().map(|(a, b)| {
+            let s = (a.chunks(1024).into_iter().map(|s| s.to_vec()).collect::<Vec<_>>(), *b);
+            s.0.into_iter().map(|v| (v, s.1)).collect_vec()
+        })
+        .collect::<Vec<Vec<(Vec<u8>, u8)>>>();
+
+        let s = t.iter().flatten().collect::<Vec<_>>();
+
+
+        s.iter()
             .map(|i| {
+                //let split = i.0
                 let lines = formatter(&i.0, width)
                     .into_iter()
                     .map(|f| Spans::from(f))
@@ -226,8 +240,11 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 } else {
                     Color::Green
                 };
+                //let t = lines.chunks(10).into_iter().map(|f| ListItem::new(f.to_vec()).style(Style::default().fg(colour)) ).collect::<Vec<_>>();
                 ListItem::new(lines).style(Style::default().fg(colour))
+                //t
             })
+//            .flatten()
             .collect()
     }
 
