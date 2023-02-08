@@ -145,14 +145,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+static mut CACHE: format_cache = format_cache {
+    width: None,
+    utf8: vec![],
+    hex: vec![],
+};
+
+
 fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
     tick_rate: Duration,
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
-    terminal.draw(|f| ui(f, &mut app))?;
-    let mut update = false;
+    //let mut cache = format_cache { width: None, utf8: vec![], hex: vec![] };
+    //terminal.draw(|f|{ui(f, &mut app, &mut cache);})?;
+
     loop {
         //terminal.draw(|f| ui(f, &mut app))?;
 
@@ -162,15 +170,17 @@ fn run_app<B: Backend>(
 
         if crossterm::event::poll(Duration::from_millis(0))? {
             if let Event::Key(key) = event::read()? {
+                let items = &mut app.items;
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Left => app.items.unselect(),
-                    KeyCode::Down => app.items.next(),
-                    KeyCode::Up => app.items.previous(),
+                    KeyCode::Left => items.unselect(),
+                    KeyCode::Down => items.next(),
+                    KeyCode::Up => items.previous(),
                     _ => {}
                 }
-                terminal.draw(|f| ui(f, &mut app))?;
-                //terminal.draw(|f| ui(f, &mut app))?;
+                terminal.draw(|f| {ui(f, &mut app);})?;
+
+                    //terminal.draw(|f| ui(f, &mut app))?;
                 //update = true;
             }
         }
@@ -204,7 +214,22 @@ fn hex_formatter(bytes: &Vec<u8>, width: u16) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+struct format_cache<'a> {
+    width: Option<u16>,
+    utf8: Vec<ListItem<'a>>,
+    hex: Vec<ListItem<'a>>,
+}
+
+impl <'a>format_cache<'a> {
+    fn update(&'a mut self, width: Option<u16>, utf8: Vec<ListItem<'a>>, hex: Vec<ListItem<'a>>) {
+        self.width = width;
+        self.utf8 = utf8;
+        self.hex = hex;
+    }
+}
+
+
+fn ui<'a, B: Backend>(f: &mut Frame<B>, app: & mut App) {
     // Create two chunks with equal horizontal screen space
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -215,10 +240,10 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     // Iterate through all elements in the `items` app and append some debug text to it.
     fn format_items(
-        app: &Vec<(Vec<u8>, u8)>,
+        app: Vec<(Vec<u8>, u8)>,
         width: u16,
         formatter: fn(&Vec<u8>, u16) -> Vec<String>,
-    ) -> Vec<ListItem> {
+    ) -> Vec<ListItem<'static>> {
         let t = app.iter().map(|(a, b)| {
             let s = (a.chunks(1024).into_iter().map(|s| s.to_vec()).collect::<Vec<_>>(), *b);
             s.0.into_iter().map(|v| (v, s.1)).collect_vec()
@@ -241,7 +266,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                     Color::Green
                 };
                 //let t = lines.chunks(10).into_iter().map(|f| ListItem::new(f.to_vec()).style(Style::default().fg(colour)) ).collect::<Vec<_>>();
-                ListItem::new(lines).style(Style::default().fg(colour))
+                ListItem::new(lines.clone()).style(Style::default().fg(colour))
                 //t
             })
 //            .flatten()
@@ -260,13 +285,32 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         //.highlight_symbol(">")
     }
 
-    let hex_items: Vec<ListItem> = format_items(&app.items.items, width, hex_formatter);
-    let hex_items = itemize(hex_items, "Hex");
 
-    let utf8_items: Vec<ListItem> = format_items(&app.items.items, width, utf8_formatter);
-    let utf8_items = itemize(utf8_items, "UTF-8");
+    unsafe {
+    if CACHE.width == Some(width) {
+        f.render_stateful_widget(itemize(CACHE.utf8.clone(), "UTF-8"), chunks[0], &mut app.items.state);
+        f.render_stateful_widget(itemize(CACHE.hex.clone(), "Hex"), chunks[1], &mut app.items.state);
+    } else {
+        //let test = app.items.items.clone();
+        let hex_form: Vec<ListItem> = format_items(app.items.items.clone(), width, hex_formatter);
+        let utf8_form: Vec<ListItem> = format_items(app.items.items.clone(), width, utf8_formatter);
 
-    // We can now render the item list
-    f.render_stateful_widget(hex_items, chunks[0], &mut app.items.state);
-    f.render_stateful_widget(utf8_items, chunks[1], &mut app.items.state);
+
+
+        let utf8_items = itemize(utf8_form.clone(), "UTF-8");
+        let hex_items = itemize(hex_form.clone(), "Hex");
+
+        CACHE.width = Some(width);
+        CACHE.hex = hex_form;
+        CACHE.utf8 = utf8_form;
+
+        //let t = hex_form.into_iter().map(|f| f.clone()).collect_vec();
+
+        //cache.update(Some(width), utf8_form, hex_form);
+        //cache.hex = hex_form;
+        //f.render_stateful_widget(hex_items, chunks[0], &mut app.items.state);
+        //f.render_stateful_widget(utf8_items, chunks[1], &mut app.items.state);
+    }
+    }
+    //return format_cache { width: None, utf8: vec![], hex: vec![] };
 }
