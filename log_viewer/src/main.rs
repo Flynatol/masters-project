@@ -10,6 +10,7 @@ use std::{
     io,
     io::{BufReader, Read},
     time::{Duration, Instant},
+    env,
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -93,7 +94,9 @@ impl App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let f = File::open("./payload.log")?;
+    let args: Vec<String> = env::args().collect();
+
+    let f = File::open(&args[1])?;
     let mut reader = BufReader::new(f);
     let mut buffer = Vec::new();
 

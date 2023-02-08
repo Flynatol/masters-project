@@ -6,4 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = "0.11.14"
+reqwest = { version = "0.11.14", features = ["blocking", "json"]}
+serde = { version = "*", features = ["derive"] }
+
+[patch.crates-io]
+openssl-src = { path = "../patched-deps/openssl-src-111.24.0+1.1.1s" }

@@ -29,10 +29,8 @@ const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[
 ];
 
 #[tokio::main]
-async fn main() {
-    let listener = TcpListener::bind(format!("{}{}", MY_IP, MY_PORT))
-        .await
-        .unwrap();
+async fn main() -> io::Result<()> {
+    let listener = TcpListener::bind(format!("{}{}", MY_IP, MY_PORT)).await?;
     let mut file = File::open("identity.pfx").unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
@@ -131,6 +129,7 @@ async fn replace_bridge(
         read_tls,
         vec![
             //("Dieses".as_bytes(), (|f| f.replace("Dieses".as_bytes(), "tested".as_bytes())))
+            //replace_stream::replace_mod::
         ],
     );
 
