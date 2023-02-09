@@ -1,0 +1,24 @@
+[package]
+name = "poker"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = "0.10.5"
+tui = "0.19"
+crossterm = "0.26"
+native-tls = { version = "0.2.11" , features = ['vendored'] }
+tokio-native-tls = "0.3.0"
+tokio = { version = "1.21.2", features = ['full'] }
+colored = "2.0.0"
+async-trait = "0.1.59"
+tokio-util = { version = "0.7.4", features = ['io'] }
+tokio-stream = "0.1.11"
+bytes = "1.3.0"
+replace_stream = { path = "../replace_stream" }
+futures = "0.3.26"
+
+[patch.crates-io]
+openssl-src = { path = "../patched-deps/openssl-src-111.24.0+1.1.1s" }
