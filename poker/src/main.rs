@@ -26,8 +26,6 @@ use futures::{self, TryFutureExt, FutureExt};
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
-use tokio_stream::StreamExt;
-use native_tls::Identity;
 
 
 struct StatefulList<T> {
@@ -118,15 +116,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Read file into vector.
     reader.read_to_end(&mut buffer)?;
 
-    let t = buffer.into_iter().tuples::<(u8, u8)>().fold(
+    let formatted_data = buffer.into_iter().tuples::<(u8, u8)>().fold(
         (Vec::<(Vec<u8>, u8)>::new()),
         |mut out, (tag, byte)| match out.last().map(|f| f.1) {
-            Some(lr) if lr == tag => {
+            Some(last_read_tag) if last_read_tag == (tag % 2) as u8 => {
                 out.last_mut().unwrap().0.push(byte);
                 return out;
             }
             _ => {
-                out.push((vec![byte], tag));
+                out.push((vec![byte], (tag % 2) as u8));
                 return out;
             }
         },
@@ -141,8 +139,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let tick_rate = Duration::from_millis(50);
-    let app = App::new(t);
-    run_app(&mut terminal, app, tick_rate).await;
+    let mut app = App::new(formatted_data);
+    while let Err(f) = run_app(&mut terminal, &mut app, tick_rate).await {
+        app.message_list.push_select(("PLC TERMINATED COMMUNICATION RESTABLISHING CONNECTION".as_bytes().to_vec(), 4));
+    }
 
     // restore terminal
     disable_raw_mode()?;
@@ -163,17 +163,19 @@ static mut CACHE: format_cache = format_cache {
     utf8: vec![],
     hex: vec![],
     messages: vec![],
+    redraw: true,
+    hex_mode: false,
 };
 
 
 async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
-    mut app: App,
+    mut app: &mut App,
     tick_rate: Duration,
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
-    let mut supress = false;
-
+    let mut supress_redraw = false;
+    
     let connector: TlsConnector = TlsConnector::from(
         native_tls::TlsConnector::builder()
             .danger_accept_invalid_certs(true)
@@ -184,16 +186,15 @@ async fn run_app<B: Backend>(
 
     let stream_out = TcpStream::connect("192.168.121.98:41100")
         .await
-        .unwrap();
+        .expect("stream_out died");
     
     let mut tls_stream_server = connector
         .connect("googlasde.com", stream_out)
         .await
-        .unwrap();
-
-    //let tls_poll = futures::poll!(Box::pin(tls_stream_server.read_u8()));
-
+        .expect("tls_stream_server died");
+    
     loop {
+
         let mut response = vec![];
         
         while let std::task::Poll::Ready(res) = futures::poll!(Box::pin(tls_stream_server.read_u8())) {
@@ -214,35 +215,95 @@ async fn run_app<B: Backend>(
                 let items = &mut app.items;
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('h') => {
+                        unsafe {
+                            CACHE.hex_mode = !CACHE.hex_mode;
+                        }
+                    },
                     KeyCode::Left => items.unselect(),
                     KeyCode::Down => items.next(),
                     KeyCode::Up => items.previous(),
+                    KeyCode::Char('i') => app.message_list.previous(),
+                    KeyCode::Char('k') => app.message_list.next(),
                     KeyCode::Enter => {
                         if let Some(index) = items.state.selected() {
                             let selected = items.items.get(index).unwrap().clone();
 
                             //Write currently selected Hex into the output stream
                             for byte in &selected.0 {
-                                tls_stream_server.write_u8(*byte).await;
+                                match tls_stream_server.write_u8(*byte).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        return Err(e);
+                                    },
+                                }
                             }
 
                             //Additionally append it to the message board
                             app.message_list.push_select(selected);
-                            //let item = it
+
+                            items.next();
+                            items.next();
                         }
-                    }
+                    },
+                    KeyCode::Char('o') => {
+                        if let Some(item) = items.state.selected().map(|f| items.items.get_mut(f).unwrap()) {
+                            if (item.1 > 1) {
+                                item.1 -= 2;
+                            } else {
+                                item.1 += 2;
+                            }
+
+                            //Invalidate cache to force redraw
+                            unsafe {
+                                CACHE.redraw = true;
+                            }
+                        }
+                    },
+                    KeyCode::Char('r') => {
+                        //Start replay excluding deselected messages:
+                        for item in items.items.clone().iter() { //Okay maybe I should rename some things...
+                            if (item.1 == 0) {
+                                tls_stream_server.write_all(&item.0[..]).await;
+                                app.message_list.push_select(item.clone());
+                                                                
+                            } else if (item.1 == 1) {
+                                let mut response = vec![];
+                                response.push(tls_stream_server.read_u8().await.unwrap());
+                                while let std::task::Poll::Ready(res) = futures::poll!(Box::pin(tls_stream_server.read_u8())) {
+                                    match res {
+                                        Ok(byte) => response.push(byte),
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+                        
+                                //Write response into Log
+                                if !response.is_empty() {
+                                    app.message_list.push_select((response, 1));
+                                }
+
+                            }
+                            terminal.draw(|f| {ui(f, &mut app);})?;
+
+                        }
+                        unsafe {
+                            CACHE.redraw = true;
+                        }
+                        
+
+                    },
                     _ => {}
                 }
                 terminal.draw(|f| {ui(f, &mut app);})?;
-                supress = true;
+                supress_redraw = true;
             }
         }
 
         if last_tick.elapsed() >= tick_rate {
             app.on_tick();
             last_tick = Instant::now();
-            if !supress {terminal.draw(|f| {ui(f, &mut app);})?;}
-            else {supress = false;}
+            if !supress_redraw {terminal.draw(|f| {ui(f, &mut app);})?;}
+            else {supress_redraw = false;}
         }
     }
 }
@@ -270,6 +331,8 @@ struct format_cache<'a> {
     utf8: Vec<ListItem<'a>>,
     hex: Vec<ListItem<'a>>,
     messages: Vec<ListItem<'a>>,
+    redraw: bool,
+    hex_mode: bool,
 }
 
 impl <'a>format_cache<'a> {
@@ -340,17 +403,21 @@ fn ui<'a, B: Backend>(f: &mut Frame<B>, app: & mut App) {
                 } else {
                     Color::Green
                 };
-                ListItem::new(lines.clone()).style(Style::default().fg(colour))
-                //t
+                let bg_colour = if (i.1 > 1) {
+                    Color::Black
+                } else {
+                    Color::Reset
+                };
+                ListItem::new(lines.clone()).style(Style::default().fg(colour).bg(bg_colour))
             })
             .collect()
     }
 
     
 
-
+    //TODO make safe by passing mutable struct ref
     unsafe {
-        if CACHE.width == Some(width) {
+        if CACHE.width == Some(width) && !CACHE.redraw {
             f.render_stateful_widget(itemize(CACHE.utf8.clone(), "UTF-8"), chunks[0], &mut app.items.state);
             f.render_stateful_widget(itemize(CACHE.hex.clone(), "Hex"), chunks[1], &mut app.items.state);
         } else {
@@ -366,8 +433,10 @@ fn ui<'a, B: Backend>(f: &mut Frame<B>, app: & mut App) {
 
             f.render_stateful_widget(hex_items, chunks[0], &mut app.items.state);
             f.render_stateful_widget(utf8_items, chunks[1], &mut app.items.state);
+
+            CACHE.redraw = false;
         }
-        f.render_stateful_widget(itemize(format_items(app.message_list.items.clone(), width, hex_formatter), "Messages"), chunks[2], &mut app.message_list.state);
+        f.render_stateful_widget(itemize(format_items(app.message_list.items.clone(), width, if CACHE.hex_mode {hex_formatter} else {utf8_formatter}), "Messages"), chunks[2], &mut app.message_list.state);
 
     }
 }
