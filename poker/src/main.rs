@@ -130,6 +130,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         },
     );
 
+    let formatted_data = formatted_data.into_iter().map(|(a, b)| {
+        let s = (a.chunks(1024).into_iter().map(|s| s.to_vec()).collect::<Vec<_>>(), b);
+        s.0.into_iter().map(|v| (v, s.1)).collect_vec()
+    }).collect::<Vec<Vec<(Vec<u8>, u8)>>>().into_iter().flatten().collect::<Vec<_>>();
+
+
+
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -225,6 +232,30 @@ async fn run_app<B: Backend>(
                     KeyCode::Up => items.previous(),
                     KeyCode::Char('i') => app.message_list.previous(),
                     KeyCode::Char('k') => app.message_list.next(),
+                    KeyCode::Char('l') => {
+                        if let Some(index) = app.message_list.state.selected() {
+                            let mut selected = (app.message_list.items.get(index).unwrap().clone().0, 0);
+                            //let mut t = selected.0;
+                            selected.0[2] = 2;
+                            selected.0[10] = 3;
+                            selected.0[14] = 227;
+                            //Write currently selected Hex into the output stream
+                            for byte in &selected.0 {
+                                match tls_stream_server.write_u8(*byte).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        return Err(e);
+                                    },
+                                }
+                            }
+
+                            //Additionally append it to the message board
+                            app.message_list.push_select(selected);
+
+                            items.next();
+                            items.next();
+                        }
+                    },
                     KeyCode::Enter => {
                         if let Some(index) = items.state.selected() {
                             let selected = items.items.get(index).unwrap().clone();
@@ -254,36 +285,58 @@ async fn run_app<B: Backend>(
                                 item.1 += 2;
                             }
 
+                            items.next();
+                            items.next();
+
                             //Invalidate cache to force redraw
                             unsafe {
                                 CACHE.redraw = true;
                             }
                         }
                     },
-                    KeyCode::Char('r') => {
-                        //Start replay excluding deselected messages:
-                        for item in items.items.clone().iter() { //Okay maybe I should rename some things...
+                    KeyCode::Char('u') => {
+                        for item in &mut items.items {
                             if (item.1 == 0) {
+                                item.1 = 2;
+                            }
+                        }
+                        unsafe {
+                            CACHE.redraw = true;
+                        }
+                    }
+                    KeyCode::Char('r') => {
+                        let mut waiting = false;
+                        //Start replay excluding deselected messages:
+                        for item in items.items.clone().iter().filter(|(a, b)| *b == 0) { //Okay maybe I should rename some things...
+                            //if (item.1 == 0  && !waiting) {
                                 tls_stream_server.write_all(&item.0[..]).await;
                                 app.message_list.push_select(item.clone());
+                                waiting = true;
                                                                 
-                            } else if (item.1 == 1) {
+                            //} else if (waiting) {
                                 let mut response = vec![];
+
                                 response.push(tls_stream_server.read_u8().await.unwrap());
+
+                                //This also delays execution
+                                terminal.draw(|f| {ui(f, &mut app);})?;
+                                
                                 while let std::task::Poll::Ready(res) = futures::poll!(Box::pin(tls_stream_server.read_u8())) {
                                     match res {
                                         Ok(byte) => response.push(byte),
                                         Err(e) => return Err(e),
                                     }
                                 }
-                        
+                                
                                 //Write response into Log
                                 if !response.is_empty() {
                                     app.message_list.push_select((response, 1));
                                 }
 
-                            }
-                            terminal.draw(|f| {ui(f, &mut app);})?;
+                                waiting = false;
+
+                            //}
+                            
 
                         }
                         unsafe {
@@ -391,7 +444,7 @@ fn ui<'a, B: Backend>(f: &mut Frame<B>, app: & mut App) {
         let s = t.iter().flatten().collect::<Vec<_>>();
 
 
-        s.iter()
+        app.iter()
             .map(|i| {
                 //let split = i.0
                 let lines = formatter(&i.0, width)
@@ -431,12 +484,11 @@ fn ui<'a, B: Backend>(f: &mut Frame<B>, app: & mut App) {
             CACHE.hex = hex_form;
             CACHE.utf8 = utf8_form;
 
-            f.render_stateful_widget(hex_items, chunks[0], &mut app.items.state);
-            f.render_stateful_widget(utf8_items, chunks[1], &mut app.items.state);
+            f.render_stateful_widget(hex_items, chunks[1], &mut app.items.state);
+            f.render_stateful_widget(utf8_items, chunks[0], &mut app.items.state);
 
             CACHE.redraw = false;
         }
         f.render_stateful_widget(itemize(format_items(app.message_list.items.clone(), width, if CACHE.hex_mode {hex_formatter} else {utf8_formatter}), "Messages"), chunks[2], &mut app.message_list.state);
-
     }
 }
