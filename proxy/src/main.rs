@@ -19,7 +19,7 @@ mod colours;
 const TARGET: &str = "192.168.121.98";
 const PORT: &str = ":41100";
 const MY_PORT: &str = ":41100";
-const MY_IP: &str = "192.168.121.144"; //TODO grab this automatically
+const MY_IP: &str = "192.168.0.22"; //TODO grab this automatically
 const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[
     (MY_IP.as_bytes(), TARGET.as_bytes()),
     (

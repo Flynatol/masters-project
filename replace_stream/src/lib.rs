@@ -45,7 +45,6 @@ pub mod replace_mod {
                 .map(|(a, b)| (&a[..], b))
                 .collect::<Vec<_>>();
 
-            //print!("triggers len: {}    ", loc_triggers.len());
             loop {
                 let read = match sref.buffer.is_empty().to_owned() {
                     true => {

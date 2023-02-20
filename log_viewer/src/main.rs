@@ -103,19 +103,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Read file into vector.
     reader.read_to_end(&mut buffer)?;
 
-    let t = buffer.into_iter().tuples::<(u8, u8)>().fold(
+    let formatted_data = buffer.into_iter().tuples::<(u8, u8)>().fold(
         (Vec::<(Vec<u8>, u8)>::new()),
         |mut out, (tag, byte)| match out.last().map(|f| f.1) {
-            Some(lr) if lr == tag => {
+            Some(last_read_tag) if last_read_tag == (tag % 2) as u8 => {
                 out.last_mut().unwrap().0.push(byte);
                 return out;
             }
             _ => {
-                out.push((vec![byte], tag));
+                out.push((vec![byte], (tag % 2) as u8));
                 return out;
             }
         },
     );
+
+    let formatted_data = formatted_data.into_iter().map(|(a, b)| {
+        let s = (a.chunks(1024).into_iter().map(|s| s.to_vec()).collect::<Vec<_>>(), b);
+        s.0.into_iter().map(|v| (v, s.1)).collect_vec()
+    }).collect::<Vec<Vec<(Vec<u8>, u8)>>>().into_iter().flatten().collect::<Vec<_>>();
 
     // setup terminal
     enable_raw_mode()?;
@@ -126,7 +131,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let tick_rate = Duration::from_millis(50);
-    let app = App::new(t);
+    let app = App::new(formatted_data);
     let res = run_app(&mut terminal, app, tick_rate);
 
     // restore terminal
