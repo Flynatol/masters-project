@@ -10,7 +10,6 @@ fn main() {
     println!("Hello, world!");
 
     
-
     let mut interface = interface::new("192.168.121.98:41100");
 
     println!("{:02x?}", interface.login(b"test22", b"test22"));
