@@ -1,0 +1,15 @@
+[package]
+name = "tpm_proxy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.21.2", features = ['full'] }
+tokio-native-tls = "0.3.0"
+native-tls = { version = "0.2.11", features = ['vendored'] }
+
+
+[patch.crates-io]
+openssl-src = { path = "../patched-deps/openssl-src-111.24.0+1.1.1s" }
