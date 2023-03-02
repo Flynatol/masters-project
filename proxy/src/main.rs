@@ -2,18 +2,19 @@ use colored::Colorize;
 use colours::COLOURS;
 use itertools::Itertools;
 use native_tls::Identity;
+use tokio_util::io::ReaderStream;
 use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use tokio::io::{self, AsyncWriteExt};
+use tokio::io::{self, AsyncWriteExt, ReadHalf};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use tokio_stream::StreamExt;
 
-use replace_stream::replace_mod::replacment_builder;
+use replace_stream::replace_mod::{replacment_builder, ReplaceStream};
 mod colours;
 
 const TARGET: &str = "192.168.121.98";
@@ -133,6 +134,9 @@ async fn replace_bridge(
         ],
     );
 
+    //read_tls.triggers.push(("tes".as_bytes().to_vec(), ReplaceStream::<ReaderStream<ReadHalf<TlsStream<TcpStream>>>>::rpl_boxed(b"test".to_vec(), b"test".to_vec())));
+    read_tls.add_repl(b"target".to_vec(), b"repl".to_vec());
+    
     let mut log = create_log(threadnum).unwrap();
 
     let col = COLOURS.get(threadnum % COLOURS.len()).unwrap();
@@ -146,7 +150,8 @@ async fn replace_bridge(
             },
         };
 
-        print!("{}", format!(" {:02x?}", read).color(*col));
+        //print!("{}", format!(" {:02x?}", read).color(*col));
+        print!("{}", format!("{:?}", read as char).color(*col));
         log.write_all(&[read]);
         write_tls.write_all(&[read]).await;
         synced_write(&merged_log, threadnum as u8, &vec![read]);

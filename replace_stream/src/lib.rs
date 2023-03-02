@@ -1,18 +1,20 @@
 pub mod replace_mod {
     use bytes::Bytes;
+    use tokio_stream::Stream;
     use std::collections::VecDeque;
+    use std::io::Error;
     use std::pin::Pin;
     use std::sync::mpsc;
     use tokio_util::io::ReaderStream;
     use std::sync::Arc;
 
-    pub struct ReplaceStream<T: tokio_stream::Stream + std::marker::Unpin> {
+    pub struct ReplaceStream<T: Stream + Unpin> {
         stream: T,
         pub buffer: VecDeque<u8>,
         pub triggers: Vec<(Vec<u8>, Arc<dyn Fn(&mut ReplaceStream<T>) -> () + Send + Sync>)>,
     }
 
-    pub fn replacment_builder<'a, T: tokio::io::AsyncRead + std::marker::Unpin>(
+    pub fn replacment_builder<'a, T: tokio::io::AsyncRead + Unpin>(
         stream: T,
         triggers: Vec<(
             Vec<u8>,
@@ -26,8 +28,8 @@ pub mod replace_mod {
         }
     }
 
-    impl<T: tokio_stream::Stream<Item = Result<Bytes, std::io::Error>> + std::marker::Unpin>
-        tokio_stream::Stream for ReplaceStream<T>
+    impl<T: Stream<Item = Result<Bytes, Error>> + Unpin>
+        Stream for ReplaceStream<T>
     {
         type Item = u8;
 
@@ -111,7 +113,7 @@ pub mod replace_mod {
         }
     }
 
-    impl<T: tokio_stream::Stream<Item = Result<Bytes, std::io::Error>> + std::marker::Unpin>
+    impl<T: tokio_stream::Stream<Item = Result<Bytes, Error>> + Unpin>
         ReplaceStream<T>
     {
         /*
@@ -142,6 +144,11 @@ pub mod replace_mod {
 
         pub fn rpl_util(target: Vec<u8>, repl: Vec<u8>) -> (Vec<u8>, Arc<dyn Fn(&mut ReplaceStream<T>) -> () + Send + Sync>) {
             (target.clone(), Self::rpl_boxed(target, repl))
+        }
+
+        pub fn add_repl(&mut self, target: Vec<u8>, repl: Vec<u8>) {
+            self.triggers.push((target.clone(), Self::rpl_boxed(target, repl)));
+            //self (target.clone(), Self::rpl_boxed(target, repl))
         }
     }
 }
