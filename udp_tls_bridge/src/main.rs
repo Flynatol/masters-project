@@ -40,7 +40,9 @@ async fn main() -> io::Result<()> {
                 println!("{:?} bytes received from plc: {:02x?}", len, &buf[..len]);
                 let sent = s.send_to(&buf[..len], &addr).await.unwrap();
                 println!("{:?} bytes sent", sent);
-            };
+            } else {
+		break;
+	    };
         }
     });
      
