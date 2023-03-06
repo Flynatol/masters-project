@@ -151,7 +151,7 @@ async fn replace_bridge(
         };
 
         //print!("{}", format!(" {:02x?}", read).color(*col));
-        print!("{}", format!("{:?}", read as char).color(*col));
+        print!("{}", format!("{}", read as char).color(*col));
         log.write_all(&[read]);
         write_tls.write_all(&[read]).await;
         synced_write(&merged_log, threadnum as u8, &vec![read]);
