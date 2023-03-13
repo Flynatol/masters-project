@@ -5,12 +5,11 @@ use crossterm::{
 };
 use itertools::Itertools;
 use std::{
-    env,
     error::Error,
     fs::File,
-    io,
+    io::{self, ErrorKind},
     io::{BufReader, Read},
-    time::{Duration, Instant},
+    time::{Duration, Instant}, path::PathBuf, net::SocketAddr,
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -21,15 +20,37 @@ use tui::{
     Frame, Terminal,
 };
 
+use clap::Parser;
+
 use futures::{self};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, time::timeout};
 use tokio::net::TcpStream;
 use tokio_native_tls::TlsConnector;
+use thiserror::Error;
 
 struct StatefulList<T> {
     state: ListState,
     items: Vec<T>,
 }
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// ip:port to connect to
+    #[arg(short)]
+    target_address: SocketAddr,
+
+    /// Log file to open
+    #[arg(short, value_name = "FILE")]
+    file: PathBuf,
+}
+
+#[derive(Error, Debug)]
+pub enum CustError {
+    #[error("data store disconnected")]
+    Disconnect(#[from] io::Error),
+}
+
 
 impl<T> StatefulList<T> {
     fn with_items(items: Vec<T>) -> StatefulList<T> {
@@ -97,9 +118,9 @@ impl App {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-    let f = File::open(&args[1])?;
+    let f = File::open(args.file)?;
     let mut reader = BufReader::new(f);
     let mut buffer = Vec::new();
 
@@ -143,18 +164,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-
+    
     // create app and run it
     let tick_rate = Duration::from_millis(50);
     let mut app = App::new(formatted_data);
-    while let Err(_f) = run_app(&mut terminal, &mut app, tick_rate).await {
+    let mut err_message = None;
+
+    while let Err(f) = run_app(&mut terminal, &mut app, tick_rate).await {
+        if f.kind() == ErrorKind::Other {
+            err_message = Some(f.to_string());
+            break;
+        };
         app.message_list.push_select((
             "PLC TERMINATED COMMUNICATION RESTABLISHING CONNECTION"
                 .as_bytes()
                 .to_vec(),
             4,
         ));
-    }
+    };
 
     // restore terminal
     disable_raw_mode()?;
@@ -165,7 +192,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )?;
     terminal.show_cursor()?;
 
-    Ok(())
+    if let Some(message) = err_message {
+        println!("{}", message);
+    }
+
+     Ok(())
 }
 
 static mut CACHE: format_cache = format_cache {
@@ -182,6 +213,7 @@ async fn run_app<B: Backend>(
     mut app: &mut App,
     tick_rate: Duration,
 ) -> io::Result<()> {
+    let args = Args::parse();
     let mut last_tick = Instant::now();
     let mut supress_redraw = false;
 
@@ -193,14 +225,14 @@ async fn run_app<B: Backend>(
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect("192.168.121.98:41100")
-        .await
-        .expect("stream_out died");
+    let Ok(Ok(stream_out)) = timeout(Duration::from_millis(500), TcpStream::connect(args.target_address)).await
+    else {
+        return Err(std::io::Error::new(ErrorKind::Other, "Failed to connect to PLC"));
+    };
 
-    let mut tls_stream_server = connector
-        .connect("googlasde.com", stream_out)
-        .await
-        .expect("tls_stream_server died");
+    let Ok(Ok(mut tls_stream_server)) = timeout(Duration::from_millis(500), connector.connect("googlasde.com", stream_out)).await else {
+        return Err(std::io::Error::new(ErrorKind::Other, "Failed to establish TLS connection"));
+    };
 
     loop {
         let mut response = vec![];
