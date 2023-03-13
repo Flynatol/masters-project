@@ -14,28 +14,30 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use tokio_stream::StreamExt;
 
+use clap::Parser;
+
 use replace_stream::replace_mod::{replacment_builder, ReplaceStream};
 mod colours;
 
-const TARGET: &str = "192.168.121.98";
-const PORT: &str = ":41100";
-const MY_PORT: &str = ":41100";
-const MY_IP: &str = "192.168.121.144"; //TODO grab this automatically
-const REPLACEMENTS: &'static [(&[u8], &[u8])] = &[
-    (MY_IP.as_bytes(), TARGET.as_bytes()),
-    (
-        "A8:74:1D:04:9D:4A".as_bytes(),
-        "08:00:27:A6:D5:86".as_bytes(),
-    ),
-];
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// ip:port to connect to
+    #[arg(short, long)]
+    target_address: std::net::SocketAddr,
+
+    /// ip:port to bind to
+    #[arg(short, long)]
+    bind_address: std::net::SocketAddr,
+}
+
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let listener = TcpListener::bind(format!("{}{}", MY_IP, MY_PORT)).await?;
-    let mut file = File::open("identity.pfx").unwrap();
-    let mut identity = vec![];
-    file.read_to_end(&mut identity).unwrap();
-	
+    let args = Args::parse();
+
+    let listener = TcpListener::bind(args.bind_address).await?;
+    	
 	let mut public = File::open("./fullchain.pem").unwrap();
     let mut pub_buf = vec![];
     public.read_to_end(&mut pub_buf).unwrap();
@@ -46,7 +48,6 @@ async fn main() -> io::Result<()> {
 	
 	let identity = Identity::from_pkcs8(&pub_buf, &priv_buf).unwrap();
 	
-    //let identity = Identity::from_pkcs12(&identity, "test").unwrap();
     let acceptor = TlsAcceptor::from(
         native_tls::TlsAcceptor::new(identity).expect("Failed to construct Identity"),
     );
@@ -86,22 +87,24 @@ async fn main() -> io::Result<()> {
 }
 
 async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num: usize) {
+    let args = Args::parse();
     println!("{} {}", "Stream created".red(), num);
 
     let connector: TlsConnector = TlsConnector::from(
         native_tls::TlsConnector::builder()
             .danger_accept_invalid_certs(true)
             .danger_accept_invalid_hostnames(true)
+            .use_sni(false)
             .build()
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect(format!("{}{}", TARGET, PORT))
+    let stream_out = TcpStream::connect(args.target_address)
         .await
         .unwrap();
         
     let tls_stream_server = connector
-        .connect("googlasde.com", stream_out)
+        .connect("AXC F 2152", stream_out)
         .await
         .unwrap();
 
@@ -135,17 +138,11 @@ async fn replace_bridge(
     threadnum: usize,
     merged_log: std::sync::Arc<std::sync::Mutex<std::fs::File>>,
 ) {
-    //let mut outbuf: VecDeque<(u8, Vec<VecDeque<u8>>)> = VecDeque::new();
-
     let mut read_tls = replacment_builder(
         read_tls,
-        vec![
-            //("Dieses".as_bytes(), (|f| f.replace("Dieses".as_bytes(), "tested".as_bytes())))
-            //replace_stream::replace_mod::
-        ],
+        vec![],
     );
 
-    //read_tls.triggers.push(("tes".as_bytes().to_vec(), ReplaceStream::<ReaderStream<ReadHalf<TlsStream<TcpStream>>>>::rpl_boxed(b"test".to_vec(), b"test".to_vec())));
     read_tls.add_repl(b"13625".to_vec(), b"99999".to_vec());
     
     let mut log = create_log(threadnum).unwrap();
@@ -161,8 +158,7 @@ async fn replace_bridge(
             },
         };
 
-        //print!("{}", format!(" {:02x?}", read).color(*col));
-        print!("{}", format!("{}", read as char).color(*col));
+        print!("{}", format!(" {:02x?}", read).color(*col));
         log.write_all(&[read]);
         write_tls.write_all(&[read]).await;
         synced_write(&merged_log, threadnum as u8, &vec![read]);
