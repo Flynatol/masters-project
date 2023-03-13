@@ -2,21 +2,20 @@ use colored::Colorize;
 use colours::COLOURS;
 use itertools::Itertools;
 use native_tls::Identity;
-use tokio_util::io::ReaderStream;
-use std::collections::VecDeque;
+
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use tokio::io::{self, AsyncWriteExt, ReadHalf};
+use tokio::io::{self, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_native_tls::{TlsAcceptor, TlsConnector, TlsStream};
 use tokio_stream::StreamExt;
 
 use clap::Parser;
 
-use replace_stream::replace_mod::{replacment_builder, ReplaceStream};
+use replace_stream::replace_mod::replacment_builder;
 mod colours;
 
 #[derive(Parser, Debug)]
@@ -31,23 +30,22 @@ struct Args {
     bind_address: std::net::SocketAddr,
 }
 
-
 #[tokio::main]
 async fn main() -> io::Result<()> {
     let args = Args::parse();
 
     let listener = TcpListener::bind(args.bind_address).await?;
-    	
-	let mut public = File::open("./fullchain.pem").unwrap();
+
+    let mut public = File::open("./fullchain.pem").unwrap();
     let mut pub_buf = vec![];
     public.read_to_end(&mut pub_buf).unwrap();
-	
-	let mut private = File::open("./privkey.pem").unwrap();
+
+    let mut private = File::open("./privkey.pem").unwrap();
     let mut priv_buf = vec![];
     private.read_to_end(&mut priv_buf).unwrap();
-	
-	let identity = Identity::from_pkcs8(&pub_buf, &priv_buf).unwrap();
-	
+
+    let identity = Identity::from_pkcs8(&pub_buf, &priv_buf).unwrap();
+
     let acceptor = TlsAcceptor::from(
         native_tls::TlsAcceptor::new(identity).expect("Failed to construct Identity"),
     );
@@ -76,7 +74,7 @@ async fn main() -> io::Result<()> {
                 tokio::spawn(async move {
                     if let Ok(stream) = acceptor.accept(stream).await {
                         handle_client(stream, stream_num).await;
-                    } 
+                    }
                 });
             }
             Err(_) => {
@@ -99,14 +97,9 @@ async fn handle_client(tls_stream_client: TlsStream<TcpStream>, num: usize) {
             .unwrap(),
     );
 
-    let stream_out = TcpStream::connect(args.target_address)
-        .await
-        .unwrap();
-        
-    let tls_stream_server = connector
-        .connect("AXC F 2152", stream_out)
-        .await
-        .unwrap();
+    let stream_out = TcpStream::connect(args.target_address).await.unwrap();
+
+    let tls_stream_server = connector.connect("AXC F 2152", stream_out).await.unwrap();
 
     let (client_read_tls, client_write_tls) = io::split(tls_stream_client);
     let (server_read_tls, server_write_tls) = io::split(tls_stream_server);
@@ -138,24 +131,21 @@ async fn replace_bridge(
     threadnum: usize,
     merged_log: std::sync::Arc<std::sync::Mutex<std::fs::File>>,
 ) {
-    let mut read_tls = replacment_builder(
-        read_tls,
-        vec![],
-    );
+    let mut read_tls = replacment_builder(read_tls, vec![]);
 
     read_tls.add_repl(b"13625".to_vec(), b"99999".to_vec());
-    
+
     let mut log = create_log(threadnum).unwrap();
 
     let col = COLOURS.get(threadnum % COLOURS.len()).unwrap();
 
     loop {
-        let read= match read_tls.next().await {
+        let read = match read_tls.next().await {
             Some(num) => num,
             None => {
                 println!("Thread {threadnum} timed out.");
                 return;
-            },
+            }
         };
 
         print!("{}", format!(" {:02x?}", read).color(*col));
