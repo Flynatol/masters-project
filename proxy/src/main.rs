@@ -35,7 +35,18 @@ async fn main() -> io::Result<()> {
     let mut file = File::open("identity.pfx").unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
-    let identity = Identity::from_pkcs12(&identity, "test").unwrap();
+	
+	let mut public = File::open("./fullchain.pem").unwrap();
+    let mut pub_buf = vec![];
+    public.read_to_end(&mut pub_buf).unwrap();
+	
+	let mut private = File::open("./privkey.pem").unwrap();
+    let mut priv_buf = vec![];
+    private.read_to_end(&mut priv_buf).unwrap();
+	
+	let identity = Identity::from_pkcs8(&pub_buf, &priv_buf).unwrap();
+	
+    //let identity = Identity::from_pkcs12(&identity, "test").unwrap();
     let acceptor = TlsAcceptor::from(
         native_tls::TlsAcceptor::new(identity).expect("Failed to construct Identity"),
     );
@@ -135,7 +146,7 @@ async fn replace_bridge(
     );
 
     //read_tls.triggers.push(("tes".as_bytes().to_vec(), ReplaceStream::<ReaderStream<ReadHalf<TlsStream<TcpStream>>>>::rpl_boxed(b"test".to_vec(), b"test".to_vec())));
-    read_tls.add_repl(b"target".to_vec(), b"repl".to_vec());
+    read_tls.add_repl(b"13625".to_vec(), b"99999".to_vec());
     
     let mut log = create_log(threadnum).unwrap();
 
