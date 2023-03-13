@@ -1,10 +1,6 @@
 pub mod plc;
 
-use std::{convert::Infallible, net::TcpStream};
-use hex::decode;
-
 use plc::interface;
-
 
 fn main() {
     println!("Hello, world!");
@@ -21,7 +17,6 @@ fn main() {
         led = !led;
 
         std::thread::sleep(core::time::Duration::from_millis(1000));
-
     }
     
 }
