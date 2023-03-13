@@ -9,6 +9,7 @@ edition = "2021"
 tokio = { version = "1.21.2", features = ['full'] }
 tokio-native-tls = "0.3.0"
 native-tls = { version = "0.2.11", features = ['vendored'] }
+clap = { version = "4.1.8", features = ["derive"] }
 
 
 [patch.crates-io]
