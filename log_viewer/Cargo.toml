@@ -1,5 +1,5 @@
 [package]
-name = "tls-test"
+name = "log_viewer"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,6 +9,8 @@ edition = "2021"
 itertools = "0.10.5"
 tui = "0.19"
 crossterm = "0.26"
+clap = { version = "4.1.8", features = ["derive"] }
+
 
 [profile.release]
 debug = true

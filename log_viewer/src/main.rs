@@ -21,9 +21,18 @@ use tui::{
     Frame, Terminal,
 };
 
+use clap::Parser;
 struct StatefulList<T> {
     state: ListState,
     items: Vec<T>,
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Log file to open
+    #[arg(short, value_name = "FILE")]
+    file: std::path::PathBuf,
 }
 
 impl<T> StatefulList<T> {
@@ -80,9 +89,9 @@ impl App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-    let f = File::open(&args[1])?;
+    let f = File::open(args.file)?;
     let mut reader = BufReader::new(f);
     let mut buffer = Vec::new();
 
