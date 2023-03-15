@@ -19,6 +19,7 @@ pub struct Build {
     host: Option<String>,
 }
 
+#[allow(dead_code)]
 pub struct Artifacts {
     include_dir: PathBuf,
     lib_dir: PathBuf,

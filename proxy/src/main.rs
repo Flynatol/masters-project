@@ -149,8 +149,8 @@ async fn replace_bridge(
         };
 
         print!("{}", format!(" {:02x?}", read).color(*col));
-        log.write_all(&[read]);
-        write_tls.write_all(&[read]).await;
+        log.write_all(&[read]).expect("Failed to write to log");
+        write_tls.write_all(&[read]).await.expect("Failed to write to TLS stream");
         synced_write(&merged_log, threadnum as u8, &vec![read]);
     }
 }
@@ -173,5 +173,5 @@ fn synced_write(
         .into_iter()
         .interleave(data.clone().into_iter())
         .collect::<Vec<_>>();
-    file.write_all(&d2);
+    file.write_all(&d2).expect("Could not write to file");
 }
