@@ -1,6 +1,6 @@
 pub mod interface {
     use std::{option::Option, net::{TcpStream, ToSocketAddrs}, io::{Write, Error, Read}};
-    use colored::Colorize;
+    
     use hex::decode;
     use native_tls::{TlsStream, TlsConnector};
 
