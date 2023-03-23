@@ -44,12 +44,12 @@ async fn main() -> io::Result<()> {
     let mut priv_buf = vec![];
     private.read_to_end(&mut priv_buf).unwrap();
  
-    let mut pfx_file = File::open("./test.com.pfx").unwrap();
+    let mut pfx_file = File::open("./remake.pfx").unwrap();
     let mut pfx = vec![]; 
     pfx_file.read_to_end(&mut pfx).unwrap();
 
     //let identity = Identity::from_pkcs8(&pub_buf, &priv_buf).unwrap();
-    let identity = Identity::from_pkcs12(&pfx, "password").unwrap();
+    let identity = Identity::from_pkcs12(&pfx, "test").unwrap();
 
     let acceptor = TlsAcceptor::from(
         native_tls::TlsAcceptor::new(identity).expect("Failed to construct Identity"),
@@ -138,7 +138,7 @@ async fn replace_bridge(
 ) {
     let mut read_tls = replacment_builder(read_tls, vec![]);
 
-    read_tls.add_repl(b"13625".to_vec(), b"99999".to_vec());
+    //read_tls.add_repl(b"13625".to_vec(), b"99999".to_vec());
 
     let mut log = create_log(threadnum).unwrap();
 
