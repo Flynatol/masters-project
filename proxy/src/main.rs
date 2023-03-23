@@ -43,8 +43,13 @@ async fn main() -> io::Result<()> {
     let mut private = File::open("./privkey.pem").unwrap();
     let mut priv_buf = vec![];
     private.read_to_end(&mut priv_buf).unwrap();
+ 
+    let mut pfx_file = File::open("./test.com.pfx").unwrap();
+    let mut pfx = vec![]; 
+    pfx_file.read_to_end(&mut pfx).unwrap();
 
-    let identity = Identity::from_pkcs8(&pub_buf, &priv_buf).unwrap();
+    //let identity = Identity::from_pkcs8(&pub_buf, &priv_buf).unwrap();
+    let identity = Identity::from_pkcs12(&pfx, "password").unwrap();
 
     let acceptor = TlsAcceptor::from(
         native_tls::TlsAcceptor::new(identity).expect("Failed to construct Identity"),
