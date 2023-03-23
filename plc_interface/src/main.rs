@@ -13,7 +13,7 @@ fn main() {
 
     let mut led = true;
     loop {
-        interface.set_exten_bool(b"LED2", led);
+        interface.set_exten_bool(b"LED1", led);
         led = !led;
 
         std::thread::sleep(core::time::Duration::from_millis(1000));
