@@ -1,11 +1,10 @@
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use itertools::Itertools;
 use std::{
-    env,
     error::Error,
     fs::File,
     io,
@@ -14,9 +13,9 @@ use std::{
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Corner, Direction, Layout},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
+    text::{Spans},
     widgets::{Block, Borders, List, ListItem, ListState},
     Frame, Terminal,
 };
@@ -99,7 +98,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     reader.read_to_end(&mut buffer)?;
 
     let formatted_data = buffer.into_iter().tuples::<(u8, u8)>().fold(
-        (Vec::<(Vec<u8>, u8)>::new()),
+        Vec::<(Vec<u8>, u8)>::new(),
         |mut out, (tag, byte)| match out.last().map(|f| f.1) {
             Some(last_read_tag) if last_read_tag == (tag % 2) as u8 => {
                 out.last_mut().unwrap().0.push(byte);
