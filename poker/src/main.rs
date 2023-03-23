@@ -199,11 +199,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
      Ok(())
 }
 
-static mut CACHE: format_cache = format_cache {
+static mut CACHE: FormatCache = FormatCache {
     width: None,
     utf8: vec![],
     hex: vec![],
-    messages: vec![],
+    //messages: vec![],
     redraw: true,
     hex_mode: false,
 };
@@ -344,7 +344,7 @@ async fn run_app<B: Backend>(
                     KeyCode::Char('r') => {
                         //Start replay excluding deselected messages:
                         for item in items.items.clone().iter().filter(|(_a, b)| *b == 0) {
-                            tls_stream_server.write_all(&item.0[..]).await;
+                            tls_stream_server.write_all(&item.0[..]).await.unwrap();
                             app.message_list.push_select(item.clone());
 
                             let mut response = vec![];
@@ -420,11 +420,11 @@ fn hex_formatter(bytes: &Vec<u8>, width: u16) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
-struct format_cache<'a> {
+struct FormatCache<'a> {
     width: Option<u16>,
     utf8: Vec<ListItem<'a>>,
     hex: Vec<ListItem<'a>>,
-    messages: Vec<ListItem<'a>>,
+    //messages: Vec<ListItem<'a>>,
     redraw: bool,
     hex_mode: bool,
 }
