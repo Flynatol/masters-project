@@ -93,9 +93,9 @@ async fn main() -> io::Result<()> {
                     }
                 }
 
-                t2 = timeout(Duration::from_millis(10000), tls_stream.read_u8()) => {
+                t2 = tls_stream.read_u8() => {
                     match t2 {
-                        Ok(Ok(b)) => {
+                        Ok(b) => {
                             if let Err(_) = stdin.write(&[b]).await {
                                 println!("Disconnected");
                                 break;
